@@ -2,10 +2,13 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import AuthButton from "./AuthButton";
 
 const NavBar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,7 +34,12 @@ const NavBar = () => {
       <div className="container max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <div className="text-2xl font-bold gradient-text">CodeProbe</div>
+            <div 
+              className="text-2xl font-bold gradient-text cursor-pointer" 
+              onClick={() => navigate("/")}
+            >
+              CodeProbe
+            </div>
           </div>
 
           <div className="hidden md:flex items-center gap-6">
@@ -42,10 +50,8 @@ const NavBar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            <Button variant="ghost" size="sm">
-              Login
-            </Button>
-            <Button variant="default" size="sm">
+            <AuthButton />
+            <Button variant="default" size="sm" onClick={() => navigate("/signin")}>
               Start Free Trial
             </Button>
           </div>
@@ -68,10 +74,8 @@ const NavBar = () => {
             <NavLink href="#testimonials" mobile>Testimonials</NavLink>
             <NavLink href="#faq" mobile>FAQ</NavLink>
             <div className="flex flex-col gap-2 mt-4">
-              <Button variant="ghost" size="sm" className="w-full">
-                Login
-              </Button>
-              <Button variant="default" size="sm" className="w-full">
+              <AuthButton />
+              <Button variant="default" size="sm" className="w-full" onClick={() => navigate("/signin")}>
                 Start Free Trial
               </Button>
             </div>
