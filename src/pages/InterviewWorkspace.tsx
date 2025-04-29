@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -200,7 +199,7 @@ const InterviewWorkspace: React.FC = () => {
                     Compiled successfully!<br />
                     You can now view the app in the browser.<br />
                     <br />
-                    > Ready on http://localhost:3000
+                    {"> Ready on http://localhost:3000"}
                   </div>
                 </div>
               </div>
