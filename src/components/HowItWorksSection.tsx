@@ -1,6 +1,6 @@
 
 import { useEffect, useRef } from "react";
-import { Code, MonitorPlay, Users, Bar } from "lucide-react";
+import { Code, MonitorPlay, Users, BarChart } from "lucide-react";
 
 const HowItWorksSection = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -45,7 +45,7 @@ const HowItWorksSection = () => {
         "Watch candidates solve problems in real-time or review their work later. Candidates can use the AI assistant just like they would use GitHub Copilot.",
     },
     {
-      icon: <Bar className="h-6 w-6" />,
+      icon: <BarChart className="h-6 w-6" />,
       title: "Analyze performance",
       description:
         "Get detailed analytics on problem-solving approaches, code quality, and efficiency. Compare candidates objectively based on real skills.",
