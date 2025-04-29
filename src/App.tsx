@@ -14,6 +14,7 @@ import AddCandidates from "./pages/dashboard/AddCandidates";
 import Submissions from "./pages/dashboard/Submissions";
 import TestManagement from "./pages/dashboard/TestManagement";
 import Settings from "./pages/dashboard/Settings";
+import InterviewWorkspace from "./pages/InterviewWorkspace";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/dashboard/submissions" element={<Submissions />} />
             <Route path="/dashboard/tests" element={<TestManagement />} />
             <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/interview" element={<InterviewWorkspace />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
