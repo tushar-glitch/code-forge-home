@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Bar, Pie } from "recharts";
 import { 
@@ -16,51 +16,9 @@ import {
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Clock, FileText, Users } from "lucide-react";
-
-// Dummy data for charts
-const weeklyData = [
-  { name: "Mon", submissions: 4 },
-  { name: "Tue", submissions: 6 },
-  { name: "Wed", submissions: 8 },
-  { name: "Thu", submissions: 10 },
-  { name: "Fri", submissions: 7 },
-  { name: "Sat", submissions: 2 },
-  { name: "Sun", submissions: 3 },
-];
-
-const passFailData = [
-  { name: "Pass", value: 65 },
-  { name: "Fail", value: 35 },
-];
-
-const COLORS = ["#6366f1", "#e11d48"];
-
-const activityFeed = [
-  {
-    id: 1,
-    type: "test_created",
-    title: "React Frontend Test",
-    time: "30 minutes ago",
-  },
-  {
-    id: 2,
-    type: "candidate_submit",
-    title: "John Smith submitted Node.js API Test",
-    time: "2 hours ago",
-  },
-  {
-    id: 3,
-    type: "feedback_pending",
-    title: "Feedback pending for 5 candidates",
-    time: "1 day ago",
-  },
-  {
-    id: 4,
-    type: "candidate_invite",
-    title: "10 new candidates were invited",
-    time: "2 days ago",
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 // Animation variants
 const containerVariants = {
@@ -85,6 +43,107 @@ const itemVariants = {
 };
 
 const Dashboard: React.FC = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    testsCreated: 0,
+    candidatesInvited: 0,
+    submissionsReceived: 0,
+    avgCompletionTime: 0
+  });
+  const [weeklyData, setWeeklyData] = useState([]);
+  const [passFailData, setPassFailData] = useState([]);
+  const [activityFeed, setActivityFeed] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/signin");
+      return;
+    }
+
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch tests count
+        const { count: testsCount } = await supabase
+          .from('tests')
+          .select('*', { count: 'exact', head: true });
+
+        // Fetch candidates count
+        const { count: candidatesCount } = await supabase
+          .from('candidates')
+          .select('*', { count: 'exact', head: true });
+
+        // Fetch submissions count
+        const { count: submissionsCount } = await supabase
+          .from('submissions')
+          .select('*', { count: 'exact', head: true });
+
+        // Set the stats
+        setStats({
+          testsCreated: testsCount || 0,
+          candidatesInvited: candidatesCount || 0,
+          submissionsReceived: submissionsCount || 0,
+          avgCompletionTime: 45 // Dummy value for now
+        });
+
+        // For now, set dummy data for the charts
+        setWeeklyData([
+          { name: "Mon", submissions: 4 },
+          { name: "Tue", submissions: 6 },
+          { name: "Wed", submissions: 8 },
+          { name: "Thu", submissions: 10 },
+          { name: "Fri", submissions: 7 },
+          { name: "Sat", submissions: 2 },
+          { name: "Sun", submissions: 3 },
+        ]);
+
+        setPassFailData([
+          { name: "Pass", value: 65 },
+          { name: "Fail", value: 35 },
+        ]);
+
+        // Fetch recent activity (just use dummy data for now)
+        setActivityFeed([
+          {
+            id: 1,
+            type: "test_created",
+            title: "React Frontend Test",
+            time: "30 minutes ago",
+          },
+          {
+            id: 2,
+            type: "candidate_submit",
+            title: "John Smith submitted Node.js API Test",
+            time: "2 hours ago",
+          },
+          {
+            id: 3,
+            type: "feedback_pending",
+            title: "Feedback pending for 5 candidates",
+            time: "1 day ago",
+          },
+          {
+            id: 4,
+            type: "candidate_invite",
+            title: "10 new candidates were invited",
+            time: "2 days ago",
+          },
+        ]);
+
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user, navigate]);
+
+  const COLORS = ["#6366f1", "#e11d48"];
+
   return (
     <DashboardLayout title="Dashboard">
       <motion.div
@@ -107,7 +166,7 @@ const Dashboard: React.FC = () => {
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">12</div>
+                  <div className="text-2xl font-bold">{stats.testsCreated}</div>
                   <p className="text-xs text-muted-foreground">
                     +2 in the last month
                   </p>
@@ -125,7 +184,7 @@ const Dashboard: React.FC = () => {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">48</div>
+                  <div className="text-2xl font-bold">{stats.candidatesInvited}</div>
                   <p className="text-xs text-muted-foreground">
                     +10 from last week
                   </p>
@@ -143,7 +202,7 @@ const Dashboard: React.FC = () => {
                   <Activity className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">32</div>
+                  <div className="text-2xl font-bold">{stats.submissionsReceived}</div>
                   <p className="text-xs text-muted-foreground">
                     67% completion rate
                   </p>
@@ -161,7 +220,7 @@ const Dashboard: React.FC = () => {
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">45m</div>
+                  <div className="text-2xl font-bold">{stats.avgCompletionTime}m</div>
                   <p className="text-xs text-muted-foreground">
                     -5m from average
                   </p>

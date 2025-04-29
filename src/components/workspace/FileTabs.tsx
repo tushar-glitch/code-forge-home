@@ -1,10 +1,9 @@
 
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { FileType } from "@/types/file";
 
 interface FileTabsProps {
@@ -21,49 +20,47 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   onTabClose,
 }) => {
   if (files.length === 0) {
-    return null;
+    return (
+      <div className="h-10 border-b border-border flex items-center px-4 text-sm text-muted-foreground">
+        No files open
+      </div>
+    );
   }
 
   return (
-    <div className="border-b border-border overflow-x-auto">
-      <ScrollArea orientation="horizontal" className="h-9">
-        <div className="flex h-9">
-          <AnimatePresence initial={false}>
-            {files.map((file) => {
-              const isActive = file.id === activeFileId;
-              return (
-                <motion.div
-                  key={file.id}
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "auto" }}
-                  exit={{ opacity: 0, width: 0 }}
-                  className={cn(
-                    "flex items-center h-9 px-4 border-r border-border relative",
-                    isActive && "bg-background border-b-2 border-b-primary"
-                  )}
-                >
-                  <div
-                    onClick={() => onTabClick(file.id)}
-                    className="flex items-center gap-2 cursor-pointer pr-8"
-                  >
-                    <span className={cn("text-sm", isActive ? "text-foreground" : "text-muted-foreground")}>
-                      {file.name}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onTabClose(file.id)}
-                    className="h-4 w-4 absolute right-1 top-1/2 transform -translate-y-1/2 opacity-60 hover:opacity-100"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-      </ScrollArea>
-    </div>
+    <ScrollArea className="border-b border-border flex-shrink-0">
+      <div className="flex h-10 items-center">
+        {files.map((file) => (
+          <div
+            key={file.id}
+            className={cn(
+              "group flex h-9 items-center gap-2 border-r border-border px-4 text-sm",
+              activeFileId === file.id
+                ? "bg-background text-foreground"
+                : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+            )}
+          >
+            <button
+              onClick={() => onTabClick(file.id)}
+              className="flex items-center gap-2"
+            >
+              <span>{file.name}</span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTabClose(file.id);
+              }}
+            >
+              <X className="h-3 w-3" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </div>
+        ))}
+      </div>
+    </ScrollArea>
   );
 };

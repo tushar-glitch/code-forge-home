@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Editor from "@monaco-editor/react";
 import { FileExplorer } from "@/components/workspace/FileExplorer";
@@ -7,32 +8,134 @@ import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
 import { FileTabs } from "@/components/workspace/FileTabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, ChevronLeft, Terminal } from "lucide-react";
+import { ChevronRight, ChevronLeft, Terminal, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { dummyFileSystem } from "@/lib/dummy-data";
 import { FileType } from "@/types/file";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 const InterviewWorkspace: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { assignmentId } = useParams(); // For getting the assignment ID from the URL
+  const location = useLocation();
+  
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(false);
   const [openFiles, setOpenFiles] = useState<FileType[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const [autosaveStatus, setAutosaveStatus] = useState<"saved" | "saving" | "error">("saved");
-  
-  // Initialize file system with dummy data
+  const [isLoading, setIsLoading] = useState(true);
+  const [projectData, setProjectData] = useState<any>(null);
+  const [assignmentData, setAssignmentData] = useState<any>(null);
+
+  // Initialize file system with dummy data for now
   const [fileSystem, setFileSystem] = useState(dummyFileSystem);
 
   useEffect(() => {
-    // Initialize with some open files for demo
-    const initialFile = dummyFileSystem.find(f => f.id === "index-js");
-    if (initialFile && !initialFile.isFolder) {
-      handleFileOpen(initialFile);
+    // Check if user is authenticated
+    if (!user) {
+      navigate("/signin");
+      return;
     }
-  }, []);
+
+    const loadAssignment = async () => {
+      setIsLoading(true);
+      try {
+        // If we have an assignmentId, fetch the assignment
+        if (assignmentId) {
+          const { data: assignment, error: assignmentError } = await supabase
+            .from('test_assignments')
+            .select('*, test:tests(*), candidate:candidates(*)')
+            .eq('id', assignmentId)
+            .single();
+
+          if (assignmentError) throw assignmentError;
+          setAssignmentData(assignment);
+
+          // Get the project data for this test
+          if (assignment.test?.project_id) {
+            const { data: project, error: projectError } = await supabase
+              .from('code_projects')
+              .select('*')
+              .eq('id', assignment.test.project_id)
+              .single();
+
+            if (projectError) throw projectError;
+            setProjectData(project);
+
+            // Update file system from project data if available
+            if (project.files_json) {
+              try {
+                const projectFiles = JSON.parse(project.files_json);
+                if (Array.isArray(projectFiles) && projectFiles.length > 0) {
+                  setFileSystem(projectFiles);
+                }
+              } catch (e) {
+                console.error("Error parsing project files:", e);
+              }
+            }
+          }
+
+          // Check for existing submissions
+          const { data: submissions, error: submissionsError } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assignment_id', assignmentId)
+            .order('created_at', { ascending: false });
+
+          if (submissionsError) throw submissionsError;
+
+          // If there are submissions, load the most recent one
+          if (submissions && submissions.length > 0) {
+            const latestSubmission = submissions[0];
+            
+            // Try to parse content as a file system or use as a single file content
+            try {
+              if (latestSubmission.content) {
+                const parsedContent = JSON.parse(latestSubmission.content);
+                if (typeof parsedContent === 'object') {
+                  setFileContents(parsedContent);
+                }
+              }
+            } catch (e) {
+              // If it's not JSON, assume it's a single file content
+              if (latestSubmission.file_path && latestSubmission.content) {
+                setFileContents({
+                  [latestSubmission.file_path]: latestSubmission.content
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading assignment:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load the assignment data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Initialize with the first file from the file system
+    const initializeFirstFile = () => {
+      const initialFile = fileSystem.find(f => !f.isFolder);
+      if (initialFile) {
+        handleFileOpen(initialFile);
+      }
+    };
+
+    loadAssignment().then(() => {
+      initializeFirstFile();
+    });
+  }, [user, assignmentId, navigate, toast]);
 
   const handleFileOpen = (file: FileType) => {
     if (file.isFolder) return;
@@ -72,7 +175,7 @@ const InterviewWorkspace: React.FC = () => {
     }
   };
 
-  const handleEditorChange = (value: string | undefined, fileId: string) => {
+  const handleEditorChange = async (value: string | undefined, fileId: string) => {
     if (value === undefined) return;
     
     setFileContents(prev => ({
@@ -82,18 +185,91 @@ const InterviewWorkspace: React.FC = () => {
     
     // Show autosave animation
     setAutosaveStatus("saving");
-    setTimeout(() => setAutosaveStatus("saved"), 800);
+    
+    // Save the content to Supabase if we have an assignment ID
+    if (assignmentId) {
+      try {
+        const { error } = await supabase
+          .from('submissions')
+          .insert({
+            assignment_id: assignmentId,
+            content: JSON.stringify(fileContents),
+            saved_at: new Date().toISOString()
+          });
+          
+        if (error) throw error;
+        setAutosaveStatus("saved");
+      } catch (error) {
+        console.error("Error saving submission:", error);
+        setAutosaveStatus("error");
+      }
+    } else {
+      // Just simulate saving for the demo
+      setTimeout(() => setAutosaveStatus("saved"), 800);
+    }
   };
 
-  const handleSubmit = () => {
-    toast({
-      title: "Submission Successful",
-      description: "Your work has been submitted for review.",
-    });
-    
-    // In a real app, this would send the code to the backend
-    setTimeout(() => navigate("/"), 2000);
+  const handleSubmit = async () => {
+    if (!assignmentId) {
+      toast({
+        title: "Info",
+        description: "This is just a demo. In a real test, your work would be submitted for review.",
+      });
+      // In a demo, just navigate back to the dashboard
+      setTimeout(() => navigate("/dashboard"), 2000);
+      return;
+    }
+
+    try {
+      // Mark the assignment as completed
+      const { error: updateError } = await supabase
+        .from('test_assignments')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', assignmentId);
+
+      if (updateError) throw updateError;
+
+      // Create a final submission
+      const { error: submissionError } = await supabase
+        .from('submissions')
+        .insert({
+          assignment_id: assignmentId,
+          content: JSON.stringify(fileContents),
+          saved_at: new Date().toISOString()
+        });
+
+      if (submissionError) throw submissionError;
+
+      toast({
+        title: "Submission Successful",
+        description: "Your work has been submitted for review.",
+      });
+
+      // Redirect to a thank you or completion page
+      setTimeout(() => navigate("/dashboard"), 2000);
+    } catch (error) {
+      console.error("Error submitting assignment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit your work. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
@@ -101,6 +277,7 @@ const InterviewWorkspace: React.FC = () => {
       <WorkspaceHeader 
         onSubmit={handleSubmit}
         autosaveStatus={autosaveStatus}
+        testTitle={assignmentData?.test?.test_title || "Coding Test"}
       />
       
       {/* Main Content */}
@@ -199,7 +376,7 @@ const InterviewWorkspace: React.FC = () => {
                     Compiled successfully!<br />
                     You can now view the app in the browser.<br />
                     <br />
-                    {"> Ready on http://localhost:3000"}
+                    {'> Ready on http://localhost:3000'}
                   </div>
                 </div>
               </div>
