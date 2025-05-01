@@ -46,13 +46,18 @@ const AuthButton = () => {
     );
   }
 
+  // Get user metadata or default values
+  const userMetadata = user.user_metadata || {};
+  const userName = userMetadata.full_name || userMetadata.name || user.email?.split('@')[0] || 'User';
+  const userImage = userMetadata.avatar_url || userMetadata.image || null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full">
           <Avatar className="h-9 w-9">
-            {user?.image ? (
-              <AvatarImage src={user.image} alt={user.name} />
+            {userImage ? (
+              <AvatarImage src={userImage} alt={userName} />
             ) : (
               <AvatarFallback className="bg-primary/10 text-primary">
                 {user?.email?.charAt(0)}
@@ -64,7 +69,7 @@ const AuthButton = () => {
       <DropdownMenuContent align="end" className="w-56">
         <div className="flex items-center justify-start gap-2 p-2">
           <div className="flex flex-col space-y-1 leading-none">
-            <p className="font-medium">{user.name}</p>
+            <p className="font-medium">{userName}</p>
             <p className="text-sm text-muted-foreground">{user.email}</p>
           </div>
         </div>

@@ -189,6 +189,32 @@ export type Database = {
           },
         ]
       }
+      recruiter: {
+        Row: {
+          created_at: string
+          id: number
+          lead_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          lead_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          lead_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruiter_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submissions: {
         Row: {
           assignment_id: number | null

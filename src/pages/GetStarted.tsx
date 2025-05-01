@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
@@ -23,7 +24,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const GetStarted = () => {
-  const { toast } = useToast();
+  const { toast: hookToast } = useToast();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -41,33 +42,72 @@ const GetStarted = () => {
     
     try {
       // Insert lead data into Supabase
-      const { error } = await supabase
+      const { data: leadData, error } = await supabase
         .from("leads")
         .insert({
           email: data.email,
           role: data.role,
           hiring_count: data.hiringCount,
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      toast({
-        title: "Thanks for your interest!",
-        description: "Our team will reach out to you shortly.",
+      // Call the edge function to create a user and send email
+      const response = await fetch(
+        "https://qcxnesarokpcrzkhlqwv.supabase.co/functions/v1/create-recruiter",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: data.email,
+            role: data.role,
+            hiringCount: data.hiringCount,
+            leadId: leadData.id,
+          }),
+        }
+      );
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create account");
+      }
+
+      // Show success message with Sonner toast (more modern UI)
+      toast("Thanks for your interest!", {
+        description: "We've created an account for you! Check your email for login details.",
+        position: "bottom-right",
+      });
+      
+      // Also show radix toast for accessibility
+      hookToast({
+        title: "Account created successfully!",
+        description: "Please check your email for login details.",
         variant: "default",
       });
       
       // Reset form and redirect to home after 2 seconds
       form.reset();
-      setTimeout(() => navigate("/"), 2000);
+      setTimeout(() => navigate("/signin"), 2000);
       
     } catch (error) {
-      toast({
-        title: "Something went wrong",
+      console.error("Error submitting form:", error);
+      
+      toast("Something went wrong", {
         description: "Please try again later.",
         variant: "destructive",
+        position: "bottom-right",
       });
-      console.error("Error submitting form:", error);
+      
+      hookToast({
+        title: "Submission failed",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -85,7 +125,7 @@ const GetStarted = () => {
                 Get started with <span className="gradient-text">CodeProbe</span>
               </h1>
               <p className="text-muted-foreground text-lg">
-                Fill out this form and our team will reach out to help you set up the perfect technical assessment process for your hiring needs.
+                Fill out this form and we'll create an account for you to start using CodeProbe for your technical assessments.
               </p>
             </div>
             
@@ -135,7 +175,7 @@ const GetStarted = () => {
             </div>
             
             <div className="bg-card border border-border rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-6">Tell us about your needs</h2>
+              <h2 className="text-xl font-semibold mb-6">Create your account</h2>
               
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -198,10 +238,10 @@ const GetStarted = () => {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Submitting...
+                        Creating Account...
                       </>
                     ) : (
-                      'Submit'
+                      'Create Account'
                     )}
                   </Button>
                 </form>
