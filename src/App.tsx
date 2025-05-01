@@ -16,6 +16,7 @@ import Submissions from "./pages/dashboard/Submissions";
 import TestManagement from "./pages/dashboard/TestManagement";
 import Settings from "./pages/dashboard/Settings";
 import InterviewWorkspace from "./pages/InterviewWorkspace";
+import GetStarted from "./pages/GetStarted";
 
 // Protected route wrapper component - moved outside App component
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -44,6 +45,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/get-started" element={<GetStarted />} />
             
             {/* Protected Dashboard Routes */}
             <Route

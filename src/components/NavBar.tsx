@@ -51,7 +51,7 @@ const NavBar = () => {
 
           <div className="hidden md:flex items-center gap-4">
             <AuthButton />
-            <Button variant="default" size="lg" onClick={() => navigate("/signin")}>
+            <Button variant="default" size="lg" onClick={() => navigate("/get-started")}>
               Get Started
             </Button>
           </div>
@@ -75,7 +75,7 @@ const NavBar = () => {
             <NavLink href="#faq" mobile>FAQ</NavLink>
             <div className="flex flex-col gap-2 mt-4">
               <AuthButton />
-              <Button variant="default" size="sm" className="w-full" onClick={() => navigate("/signin")}>
+              <Button variant="default" size="sm" className="w-full" onClick={() => navigate("/get-started")}>
                 Get Started
               </Button>
             </div>

@@ -124,6 +124,71 @@ export type Database = {
           },
         ]
       }
+      leads: {
+        Row: {
+          created_at: string
+          email: string
+          hiring_count: number
+          id: string
+          notes: string | null
+          role: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          hiring_count: number
+          id?: string
+          notes?: string | null
+          role: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          hiring_count?: number
+          id?: string
+          notes?: string | null
+          role?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          company_id: number | null
+          created_at: string
+          first_name: string | null
+          id: number
+          last_name: string | null
+          role: string | null
+        }
+        Insert: {
+          company_id?: number | null
+          created_at?: string
+          first_name?: string | null
+          id?: number
+          last_name?: string | null
+          role?: string | null
+        }
+        Update: {
+          company_id?: number | null
+          created_at?: string
+          first_name?: string | null
+          id?: number
+          last_name?: string | null
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submissions: {
         Row: {
           assignment_id: number | null
@@ -212,25 +277,31 @@ export type Database = {
           company_id: number | null
           created_at: string
           id: number
-          notes: string | null
+          instructions: string | null
+          primary_language: string | null
           project_id: number | null
           test_title: string | null
+          time_limit: number | null
         }
         Insert: {
           company_id?: number | null
           created_at?: string
           id?: number
-          notes?: string | null
+          instructions?: string | null
+          primary_language?: string | null
           project_id?: number | null
           test_title?: string | null
+          time_limit?: number | null
         }
         Update: {
           company_id?: number | null
           created_at?: string
           id?: number
-          notes?: string | null
+          instructions?: string | null
+          primary_language?: string | null
           project_id?: number | null
           test_title?: string | null
+          time_limit?: number | null
         }
         Relationships: [
           {
