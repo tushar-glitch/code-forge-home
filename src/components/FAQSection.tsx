@@ -32,9 +32,9 @@ const FAQSection = () => {
 
   const faqs = [
     {
-      question: "How does CodeProbe differ from traditional technical interviews?",
+      question: "How does hire10xdevs differ from traditional technical interviews?",
       answer:
-        "CodeProbe focuses on real-world coding tasks instead of algorithm puzzles. Candidates work on practical problems in a complete development environment with access to documentation and tools they'd normally use—just like they would in an actual job.",
+        "hire10xdevs focuses on real-world coding tasks instead of algorithm puzzles. Candidates work on practical problems in a complete development environment with access to documentation and tools they'd normally use—just like they would in an actual job.",
     },
     {
       question: "What programming languages and frameworks do you support?",

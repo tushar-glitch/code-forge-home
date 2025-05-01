@@ -97,18 +97,13 @@ const SignIn = () => {
     <div className="container flex min-h-[80vh] flex-col items-center justify-center max-w-md mx-auto py-20">
       <Card className="w-full">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to CodeProbe</CardTitle>
+          <CardTitle className="text-2xl">Welcome to hire10xdevs</CardTitle>
           <CardDescription>
             Sign in to access your account and start assessing candidates.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
             <TabsContent value="signin">
               <form onSubmit={handleEmailSignIn} className="space-y-4">
                 <div className="grid gap-2">
@@ -127,6 +122,7 @@ const SignIn = () => {
                   <Input 
                     id="password" 
                     type="password"
+                    placeholder="******"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required

@@ -35,10 +35,10 @@ const NavBar = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div 
-              className="text-2xl font-bold gradient-text cursor-pointer" 
+              className="text-3xl font-bold gradient-text cursor-pointer" 
               onClick={() => navigate("/")}
             >
-              CodeProbe
+              hire10xdevs
             </div>
           </div>
 

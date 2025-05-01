@@ -106,7 +106,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 <div className="h-8 w-8 rounded-md bg-primary/20 flex items-center justify-center">
                   <span className="text-xl font-bold text-primary">CP</span>
                 </div>
-                <div className="text-xl font-bold">CodeProbe</div>
+                <div className="text-xl font-bold">hire10xdevs</div>
               </div>
             </SidebarHeader>
             <SidebarContent>

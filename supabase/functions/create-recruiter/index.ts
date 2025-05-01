@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
+import pkg from "https://esm.sh/@supabase/supabase-js@2.43.3?dts";
+const { createClient } = pkg;
 import { Resend } from "npm:resend@2.0.0";
 
 // Initialize Resend with API key from environment variable
@@ -46,7 +47,7 @@ serve(async (req: Request) => {
 
     // Get Supabase URL and key from environment variables
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -83,12 +84,12 @@ serve(async (req: Request) => {
 
     // Send welcome email with password
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: "CodeProbe <noreply@resend.dev>",
+      from: "hire10xdevs <noreply@resend.dev>",
       to: email,
-      subject: "Welcome to CodeProbe - Your Account Details",
+      subject: "Welcome to hire10xdevs - Your Account Details",
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #6366F1;">Welcome to CodeProbe!</h1>
+          <h1 style="color: #6366F1;">Welcome to hire10xdevs!</h1>
           <p>Your account has been created successfully. You can now sign in using the following credentials:</p>
           <div style="background-color: #F3F4F6; padding: 16px; border-radius: 8px; margin: 24px 0;">
             <p><strong>Email:</strong> ${email}</p>

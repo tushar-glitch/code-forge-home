@@ -122,10 +122,10 @@ const GetStarted = () => {
           <div className="space-y-6">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold mb-4">
-                Get started with <span className="gradient-text">CodeProbe</span>
+                Get started with <span className="gradient-text">hire10xdevs</span>
               </h1>
               <p className="text-muted-foreground text-lg">
-                Fill out this form and we'll create an account for you to start using CodeProbe for your technical assessments.
+                Fill out this form and we'll create an account for you to start using hire10xdevs for your technical assessments.
               </p>
             </div>
             

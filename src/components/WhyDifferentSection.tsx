@@ -82,7 +82,7 @@ const WhyDifferentSection = () => {
               
               <div className="space-y-4 relative z-10">
                 <div className="flex items-center gap-4">
-                  <div className="bg-primary/20 text-primary p-2 rounded-md">CodeProbe</div>
+                  <div className="bg-primary/20 text-primary p-2 rounded-md">hire10xdevs</div>
                   <div className="text-sm text-muted-foreground">Real-world Assessment</div>
                 </div>
                 <div className="border-l-2 border-primary/30 pl-4">

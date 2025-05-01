@@ -9,7 +9,7 @@ const Footer = () => {
       <div className="container max-w-7xl mx-auto px-4 py-16">
         <div className="grid md:grid-cols-2 gap-8 md:gap-16 mb-8">
           <div>
-            <div className="text-2xl font-bold gradient-text mb-4">CodeProbe</div>
+            <div className="text-2xl font-bold gradient-text mb-4">hire10xdevs</div>
             <p className="text-muted-foreground max-w-md mb-6">
               Reimagining technical hiring with real-world coding assessments that
               evaluate practical development skills.
@@ -112,7 +112,7 @@ const Footer = () => {
 
         <div className="pt-8 border-t border-border text-sm text-muted-foreground">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>&copy; {currentYear} CodeProbe. All rights reserved.</div>
+            <div>&copy; {currentYear} hire10xdevs. All rights reserved.</div>
             <div className="flex gap-6">
               <FooterLink href="#privacy">Privacy Policy</FooterLink>
               <FooterLink href="#terms">Terms of Service</FooterLink>
