@@ -8,7 +8,7 @@ import WhyDifferentSection from "@/components/WhyDifferentSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import FAQSection from "@/components/FAQSection";
 import Footer from "@/components/Footer";
-
+import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   useEffect(() => {
     const handleScroll = () => {
@@ -30,6 +30,13 @@ const Index = () => {
     
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const temp = async () => {
+    
+const { data: { user } } = await supabase.auth.getUser()
+    console.log(user)
+  }
+  temp();
 
   return (
     <div className="min-h-screen bg-background text-foreground">

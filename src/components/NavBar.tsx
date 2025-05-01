@@ -51,8 +51,8 @@ const NavBar = () => {
 
           <div className="hidden md:flex items-center gap-4">
             <AuthButton />
-            <Button variant="default" size="sm" onClick={() => navigate("/signin")}>
-              Start Free Trial
+            <Button variant="default" size="lg" onClick={() => navigate("/signin")}>
+              Get Started
             </Button>
           </div>
 
@@ -76,7 +76,7 @@ const NavBar = () => {
             <div className="flex flex-col gap-2 mt-4">
               <AuthButton />
               <Button variant="default" size="sm" className="w-full" onClick={() => navigate("/signin")}>
-                Start Free Trial
+                Get Started
               </Button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -43,50 +43,19 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { Loader2 } from "lucide-react";
 
-// Dummy data for tests
-const testsData = [
-  {
-    id: "test-1",
-    name: "React Frontend Bug Fix",
-    template: "react-bug",
-    dateCreated: "2025-04-15T10:00:00",
-    assignedCandidates: 12,
-    status: "active"
-  },
-  {
-    id: "test-2",
-    name: "Node.js API Implementation",
-    template: "node-api",
-    dateCreated: "2025-04-12T14:30:00",
-    assignedCandidates: 8,
-    status: "active"
-  },
-  {
-    id: "test-3",
-    name: "Full Stack App Debug",
-    template: "full-stack",
-    dateCreated: "2025-04-10T09:15:00",
-    assignedCandidates: 5,
-    status: "closed"
-  },
-  {
-    id: "test-4",
-    name: "Algorithm Optimization Challenge",
-    template: "algorithm",
-    dateCreated: "2025-04-05T16:45:00",
-    assignedCandidates: 15,
-    status: "active"
-  },
-  {
-    id: "test-5",
-    name: "React State Management",
-    template: "react-bug",
-    dateCreated: "2025-04-01T11:20:00",
-    assignedCandidates: 0,
-    status: "draft"
-  }
-];
+// Types for the test data
+interface Test {
+  id: string;
+  test_title: string;
+  project_id?: string;
+  created_at: string;
+  status: string;
+  candidate_count?: number;
+}
 
 // Animation variants
 const containerVariants = {
@@ -112,9 +81,60 @@ const itemVariants = {
 
 const TestManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [testToDelete, setTestToDelete] = useState<string | null>(null);
+  const [tests, setTests] = useState<Test[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/signin");
+      return;
+    }
+
+    const fetchTests = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch the tests
+        const { data: testsData, error: testsError } = await supabase
+          .from('tests')
+          .select('*');
+
+        if (testsError) throw testsError;
+
+        // For each test, get the count of candidates
+        const testsWithCounts = await Promise.all(testsData.map(async (test) => {
+          const { count, error } = await supabase
+            .from('test_assignments')
+            .select('*', { count: 'exact', head: true })
+            .eq('test_id', test.id);
+          
+          return {
+            ...test,
+            id: test.id.toString(),
+            candidate_count: count || 0,
+            // Default status if not available in DB
+            status: test.status || (count && count > 0 ? 'active' : 'draft')
+          };
+        }));
+
+        setTests(testsWithCounts);
+      } catch (error) {
+        console.error("Error fetching tests:", error);
+        toast({
+          title: "Error loading tests",
+          description: "Could not load your tests. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTests();
+  }, [user, navigate]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -130,29 +150,85 @@ const TestManagement: React.FC = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
-    // In a real app, you'd delete the test here
-    toast({
-      title: "Test deleted",
-      description: "The test has been deleted successfully"
-    });
-    setIsDeleteDialogOpen(false);
+  const confirmDelete = async () => {
+    if (!testToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from('tests')
+        .delete()
+        .eq('id', testToDelete);
+
+      if (error) throw error;
+
+      setTests(tests.filter(test => test.id !== testToDelete));
+      
+      toast({
+        title: "Test deleted",
+        description: "The test has been deleted successfully"
+      });
+    } catch (error) {
+      console.error("Error deleting test:", error);
+      toast({
+        title: "Error deleting test",
+        description: "Could not delete the test. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setTestToDelete(null);
+    }
   };
 
-  const handleDuplicate = (testId: string) => {
-    // In a real app, you'd duplicate the test here
-    toast({
-      title: "Test duplicated",
-      description: "A copy of the test has been created"
-    });
+  const handleDuplicate = async (testId: string) => {
+    try {
+      // Get the test to duplicate
+      const { data: testToDuplicate, error: fetchError } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('id', testId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Create a new test with the same data
+      const { data: newTest, error: insertError } = await supabase
+        .from('tests')
+        .insert({
+          test_title: `${testToDuplicate.test_title} (Copy)`,
+          project_id: testToDuplicate.project_id,
+          company_id: testToDuplicate.company_id,
+          notes: testToDuplicate.notes,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Add the new test to the list
+      setTests([...tests, {
+        ...newTest,
+        id: newTest.id.toString(),
+        candidate_count: 0,
+        status: 'draft'
+      }]);
+
+      toast({
+        title: "Test duplicated",
+        description: "A copy of the test has been created"
+      });
+    } catch (error) {
+      console.error("Error duplicating test:", error);
+      toast({
+        title: "Error duplicating test",
+        description: "Could not duplicate the test. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleEdit = (testId: string) => {
-    // In a real app, you'd navigate to the edit page
-    toast({
-      title: "Editing test",
-      description: "In a real app, this would take you to the edit page"
-    });
+    navigate(`/dashboard/tests/${testId}`);
   };
 
   const statusColor = (status: string) => {
@@ -168,10 +244,9 @@ const TestManagement: React.FC = () => {
     }
   };
 
-  const filteredTests = testsData.filter(
+  const filteredTests = tests.filter(
     (test) =>
-      test.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      test.template.toLowerCase().includes(searchTerm.toLowerCase())
+      test.test_title && test.test_title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -247,7 +322,7 @@ const TestManagement: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Test Name</TableHead>
-                <TableHead className="hidden md:table-cell">Template</TableHead>
+                <TableHead className="hidden md:table-cell">Project ID</TableHead>
                 <TableHead className="hidden md:table-cell">Created</TableHead>
                 <TableHead>Candidates</TableHead>
                 <TableHead>Status</TableHead>
@@ -255,65 +330,70 @@ const TestManagement: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTests.map((test) => (
-                <TableRow key={test.id}>
-                  <TableCell className="font-medium">{test.name}</TableCell>
-                  <TableCell className="hidden md:table-cell capitalize">
-                    {test.template.replace(/-/g, ' ')}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {formatDate(test.dateCreated)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      {test.assignedCandidates}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      className={`${statusColor(test.status)} w-fit capitalize`}
-                    >
-                      {test.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="cursor-pointer"
-                          onClick={() => handleEdit(test.id)}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="cursor-pointer"
-                          onClick={() => handleDuplicate(test.id)}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                          onClick={() => handleDelete(test.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    <Loader2 className="h-6 w-6 mx-auto animate-spin text-muted-foreground" />
                   </TableCell>
                 </TableRow>
-              ))}
-              {filteredTests.length === 0 && (
+              ) : filteredTests.length > 0 ? (
+                filteredTests.map((test) => (
+                  <TableRow key={test.id}>
+                    <TableCell className="font-medium">{test.test_title}</TableCell>
+                    <TableCell className="hidden md:table-cell">{test.project_id || 'N/A'}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {formatDate(test.created_at)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        {test.candidate_count}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        className={`${statusColor(test.status)} w-fit capitalize`}
+                      >
+                        {test.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="cursor-pointer"
+                            onClick={() => handleEdit(test.id)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="cursor-pointer"
+                            onClick={() => handleDuplicate(test.id)}
+                          >
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                            onClick={() => handleDelete(test.id)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">
                     <p className="text-muted-foreground">No tests match your search</p>
@@ -337,10 +417,10 @@ const TestManagement: React.FC = () => {
           
           <div className="bg-muted/50 p-4 rounded-md">
             <p className="font-medium">
-              {testsData.find(t => t.id === testToDelete)?.name}
+              {tests.find(t => t.id === testToDelete)?.test_title}
             </p>
             <p className="text-sm text-muted-foreground">
-              {testsData.find(t => t.id === testToDelete)?.assignedCandidates} candidates assigned
+              {tests.find(t => t.id === testToDelete)?.candidate_count} candidates assigned
             </p>
           </div>
           

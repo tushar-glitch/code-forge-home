@@ -1,78 +1,103 @@
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-
-// Define authentication types
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  image?: string;
-};
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Session, User } from "@supabase/supabase-js";
 
 type AuthContextType = {
   user: User | null;
+  session: Session | null;
   isLoading: boolean;
-  signIn: (provider: "google") => Promise<void>;
+  signIn: (provider: "google" | "github" | string, options?: any) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<void>;
 };
 
-// Create the auth context with default values
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isLoading: true,
-  signIn: async () => {},
-  signOut: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => useContext(AuthContext);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Check for existing user session on mount
   useEffect(() => {
-    const checkSession = () => {
-      const savedUser = localStorage.getItem("user");
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
+    // Set up auth state listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
       }
-      setIsLoading(false);
-    };
+    );
 
-    checkSession();
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Simple sign-in function (mock for now)
-  const signIn = async (provider: "google") => {
-    setIsLoading(true);
-    
-    // In a real implementation, we would use Firebase/Auth0/etc
-    // For this demo, we'll simulate a successful Google sign-in
-    if (provider === "google") {
-      const mockUser: User = {
-        id: "google-user-123",
-        name: "Demo User",
-        email: "user@example.com",
-        image: "https://ui-avatars.com/api/?name=Demo+User&background=random"
-      };
-      
-      localStorage.setItem("user", JSON.stringify(mockUser));
-      setUser(mockUser);
+  const signIn = async (provider: "google" | "github" | string, options?: any) => {
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: provider as any,
+        options: options || { redirectTo: window.location.origin },
+      });
+    } catch (error) {
+      console.error("Error signing in:", error);
+      throw error;
     }
-    
-    setIsLoading(false);
   };
 
-  // Sign out function
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      return await supabase.auth.signInWithPassword({ email, password });
+    } catch (error) {
+      console.error("Error signing in:", error);
+      throw error;
+    }
+  };
+
+  const signUp = async (email: string, password: string) => {
+    try {
+      return await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        }
+      });
+    } catch (error) {
+      console.error("Error signing up:", error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
-    localStorage.removeItem("user");
-    setUser(null);
+    try {
+      await supabase.auth.signOut();
+      // Explicitly update state after sign out
+      setUser(null);
+      setSession(null);
+    } catch (error) {
+      console.error("Error signing out:", error);
+      throw error;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signIn, signInWithEmail, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };

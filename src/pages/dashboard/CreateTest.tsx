@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,43 +7,68 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, ChevronRight, Code, FileText, Timer } from "lucide-react";
+import { CheckCircle, ChevronRight, Code, FileText, Timer, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
-const templates = [
-  {
-    id: "react-bug",
-    title: "React Bug Fix",
-    description: "Find and fix bugs in a React component"
-  },
-  {
-    id: "node-api",
-    title: "Node.js API",
-    description: "Implement missing endpoints in a Node.js API"
-  },
-  {
-    id: "full-stack",
-    title: "Full Stack App",
-    description: "Debug a full stack application with React and Node.js"
-  },
-  {
-    id: "algorithm",
-    title: "Algorithm Challenge",
-    description: "Optimize an inefficient algorithm implementation"
-  }
-];
+// Define interface for code projects
+interface CodeProject {
+  id: number;
+  name: string;
+  description: string;
+  files_json: any;
+  created_at: string;
+}
 
-const formSteps = ["Choose Template", "Configure Test", "Review & Publish"];
+const formSteps = ["Choose Project", "Configure Test", "Review & Publish"];
 
 const CreateTest: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [projects, setProjects] = useState<CodeProject[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: "",
     timeLimit: 60,
     language: "javascript",
     instructions: ""
   });
+
+  // Fetch code projects from Supabase
+  useEffect(() => {
+    if (!user) {
+      navigate("/signin");
+      return;
+    }
+
+    const fetchProjects = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('code_projects')
+          .select('*');
+
+        if (error) throw error;
+        
+        setProjects(data || []);
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+        toast({
+          title: "Error loading projects",
+          description: "Could not load projects. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, [user, navigate]);
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
@@ -57,8 +82,8 @@ const CreateTest: React.FC = () => {
   const handleNext = () => {
     if (step === 0 && !selectedTemplate) {
       toast({
-        title: "Please select a template",
-        description: "You need to select a template to continue.",
+        title: "Please select a project",
+        description: "You need to select a project to continue.",
         variant: "destructive"
       });
       return;
@@ -121,6 +146,16 @@ const CreateTest: React.FC = () => {
     }
   };
 
+  // Helper function to determine icon based on project name
+  const getProjectIcon = (projectName: string) => {
+    const name = projectName?.toLowerCase() || "";
+    if (name.includes("react") || name.includes("frontend")) return <Code className="h-5 w-5 text-primary" />;
+    if (name.includes("node") || name.includes("api")) return <FileText className="h-5 w-5 text-primary" />;
+    if (name.includes("full") || name.includes("stack")) return <Code className="h-5 w-5 text-primary" />;
+    if (name.includes("algo") || name.includes("challenge")) return <Timer className="h-5 w-5 text-primary" />;
+    return <Code className="h-5 w-5 text-primary" />;
+  };
+
   return (
     <DashboardLayout title="Create Test">
       <motion.div
@@ -165,32 +200,41 @@ const CreateTest: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Step 1: Choose Template */}
+        {/* Step 1: Choose Project */}
         {step === 0 && (
           <motion.div variants={itemVariants}>
-            <h2 className="mb-4 text-xl font-semibold">Choose a Test Template</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {templates.map((template) => (
-                <Card 
-                  key={template.id}
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    selectedTemplate === template.id ? "border-2 border-primary" : ""
-                  }`}
-                  onClick={() => handleTemplateSelect(template.id)}
-                >
-                  <CardHeader className="flex flex-row items-start justify-between">
-                    <div>
-                      <CardTitle>{template.title}</CardTitle>
-                      <CardDescription>{template.description}</CardDescription>
-                    </div>
-                    {template.id === "react-bug" && <Code className="h-5 w-5 text-primary" />}
-                    {template.id === "node-api" && <FileText className="h-5 w-5 text-primary" />}
-                    {template.id === "full-stack" && <Code className="h-5 w-5 text-primary" />}
-                    {template.id === "algorithm" && <Timer className="h-5 w-5 text-primary" />}
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
+            <h2 className="mb-4 text-4xl font-semibold">Choose a Project</h2>
+            
+            {isLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2 text-lg">Loading projects...</span>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No projects available. Please create a project first.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {projects.map((project) => (
+                  <Card 
+                    key={project.id}
+                    className={`cursor-pointer transition-all hover:shadow-md ${
+                      selectedTemplate === project.id.toString() ? "border-2 border-primary" : ""
+                    }`}
+                    onClick={() => handleTemplateSelect(project.id.toString())}
+                  >
+                    <CardHeader className="flex flex-row items-start justify-between">
+                      <div>
+                        <CardTitle>{project.name}</CardTitle>
+                        <CardDescription>{project.description}</CardDescription>
+                      </div>
+                      {getProjectIcon(project.name)}
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -285,9 +329,9 @@ const CreateTest: React.FC = () => {
                 <div className="rounded-md bg-muted p-4">
                   <div className="grid gap-2">
                     <div className="flex justify-between">
-                      <span className="text-sm font-medium">Template</span>
+                      <span className="text-sm font-medium">Project</span>
                       <span className="text-sm">
-                        {templates.find(t => t.id === selectedTemplate)?.title}
+                        {projects.find(p => p.id.toString() === selectedTemplate)?.name}
                       </span>
                     </div>
                     <div className="flex justify-between">

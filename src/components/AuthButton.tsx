@@ -27,7 +27,7 @@ const AuthButton = () => {
 
   if (isLoading) {
     return (
-      <Button variant="ghost" size="sm" disabled>
+      <Button variant="ghost" size="lg" disabled>
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         Loading
       </Button>
@@ -38,7 +38,7 @@ const AuthButton = () => {
     return (
       <Button 
         variant="ghost" 
-        size="sm" 
+        size="lg" 
         onClick={() => navigate("/signin")}
       >
         Login
@@ -51,11 +51,11 @@ const AuthButton = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full">
           <Avatar className="h-9 w-9">
-            {user.image ? (
+            {user?.image ? (
               <AvatarImage src={user.image} alt={user.name} />
             ) : (
               <AvatarFallback className="bg-primary/10 text-primary">
-                {user.name.charAt(0)}
+                {user?.email?.charAt(0)}
               </AvatarFallback>
             )}
           </Avatar>
