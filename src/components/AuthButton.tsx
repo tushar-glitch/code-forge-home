@@ -60,7 +60,7 @@ const AuthButton = () => {
               <AvatarImage src={userImage} alt={userName} />
             ) : (
               <AvatarFallback className="bg-primary/10 text-primary">
-                {user?.email?.charAt(0)}
+                {user?.email?.charAt(0)?.toUpperCase() || 'U'}
               </AvatarFallback>
             )}
           </Avatar>

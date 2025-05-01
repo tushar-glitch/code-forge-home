@@ -13,12 +13,26 @@ import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
+import { useQuery } from "@tanstack/react-query";
+
+// Fetch companies function
+const fetchCompanies = async () => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('id, name')
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data;
+};
 
 // Define form schema with validation
 const formSchema = z.object({
   email: z.string().email("Please enter a valid work email"),
   role: z.string().min(1, "Please select your role"),
   hiringCount: z.coerce.number().int().min(1, "Must be at least 1"),
+  companyId: z.string().min(1, "Please select a company"),
+  otherCompany: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -27,6 +41,13 @@ const GetStarted = () => {
   const { toast: hookToast } = useToast();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showOtherCompany, setShowOtherCompany] = useState(false);
+  
+  // Fetch companies with React Query
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
+    queryKey: ['companies'],
+    queryFn: fetchCompanies,
+  });
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -34,13 +55,42 @@ const GetStarted = () => {
       email: "",
       role: "",
       hiringCount: 1,
+      companyId: "",
+      otherCompany: "",
     },
   });
+
+  // Handle company selection changes
+  const handleCompanyChange = (value: string) => {
+    form.setValue("companyId", value);
+    setShowOtherCompany(value === "other");
+    
+    // Clear other company field if not "other"
+    if (value !== "other") {
+      form.setValue("otherCompany", "");
+    }
+  };
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     
     try {
+      let companyId = data.companyId;
+      
+      // If "other" is selected, create a new company
+      if (data.companyId === "other" && data.otherCompany) {
+        const { data: newCompany, error: companyError } = await supabase
+          .from("companies")
+          .insert({
+            name: data.otherCompany,
+          })
+          .select('id')
+          .single();
+
+        if (companyError) throw companyError;
+        companyId = newCompany.id.toString();
+      }
+      
       // Insert lead data into Supabase
       const { data: leadData, error } = await supabase
         .from("leads")
@@ -67,6 +117,7 @@ const GetStarted = () => {
             role: data.role,
             hiringCount: data.hiringCount,
             leadId: leadData.id,
+            companyId: companyId,
           }),
         }
       );
@@ -99,7 +150,6 @@ const GetStarted = () => {
       
       toast("Something went wrong", {
         description: "Please try again later.",
-        variant: "destructive",
         position: "bottom-right",
       });
       
@@ -192,6 +242,57 @@ const GetStarted = () => {
                       </FormItem>
                     )}
                   />
+                  
+                  <FormField
+                    control={form.control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company</FormLabel>
+                        <Select 
+                          onValueChange={handleCompanyChange} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select your company" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {isLoadingCompanies ? (
+                              <SelectItem value="loading" disabled>Loading...</SelectItem>
+                            ) : (
+                              <>
+                                {companies.map((company) => (
+                                  <SelectItem key={company.id} value={company.id.toString()}>
+                                    {company.name}
+                                  </SelectItem>
+                                ))}
+                                <SelectItem value="other">Other</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {showOtherCompany && (
+                    <FormField
+                      control={form.control}
+                      name="otherCompany"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Company Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your company name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   
                   <FormField
                     control={form.control}

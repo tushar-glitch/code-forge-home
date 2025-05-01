@@ -3,26 +3,23 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
 import { Resend } from "npm:resend@2.0.0";
 
-// Initialize Resend with API key from environment variable
+// Initialize Resend for email sending
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-// CORS headers for browser requests
+// Initialize Supabase client with admin privileges
+const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// CORS headers for cross-origin requests
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Define the expected request body structure
-interface CreateRecruiterRequest {
-  email: string;
-  role: string;
-  hiringCount: number;
-  leadId: string;
-}
-
-// Function to generate a random password
-function generatePassword(length = 12) {
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+// Generate a secure random password
+function generatePassword(length = 10) {
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
   let password = "";
   for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * charset.length);
@@ -31,103 +28,107 @@ function generatePassword(length = 12) {
   return password;
 }
 
-// Main handler function
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
+interface CreateRecruiterRequest {
+  email: string;
+  role: string;
+  hiringCount: number;
+  leadId: string;
+  companyId?: string;
+}
+
+const handler = async (req: Request): Promise<Response> => {
+  console.log("1");
+
+  // Handle preflight CORS requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
+      status: 204,
       headers: corsHeaders,
     });
   }
 
   try {
-    // Parse the request body
-    const { email, role, hiringCount, leadId }: CreateRecruiterRequest = await req.json();
+    console.log("2");
+    const { email, role, hiringCount, leadId, companyId } = await req.json() as CreateRecruiterRequest;
+    console.log("3");
 
-    // Get Supabase URL and key from environment variables
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
-    
-    // Initialize Supabase client
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-      },
-    });
-
-    // Generate a password for the new user
+    // Generate a random password for the new user
     const password = generatePassword();
+    
+    console.log("4");
 
-    // Create a new user in Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    // Create a new user with the provided email and generated password
+    const { data: userData, error: userError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto confirm the email
-      user_metadata: { role, hiringCount }
+      email_confirm: true, // Auto-confirm email
     });
 
-    if (authError) {
-      throw new Error(`Error creating user: ${authError.message}`);
+    console.log("5");
+
+    if (userError) {
+      console.error("Error creating user:", userError);
+      throw new Error(`Error creating user: ${userError.message}`);
     }
 
-    // Create a recruiter record linked to the lead
-    if (authData?.user) {
-      const { error: recruiterError } = await supabase
-        .from("recruiter")
-        .insert({ lead_id: leadId });
+    // Add the user to the recruiter table with the lead ID
+    if (userData.user) {
+      await supabase.from("recruiter").insert({
+        id: userData.user.id,
+        lead_id: leadId,
+      });
 
-      if (recruiterError) {
-        console.error("Error creating recruiter record:", recruiterError);
+      // Create profile with company ID if provided
+      if (companyId) {
+        await supabase.from("profiles").insert({
+          id: userData.user.id,
+          company_id: companyId,
+        });
+      } else {
+        await supabase.from("profiles").insert({
+          id: userData.user.id,
+        });
       }
     }
 
-    // Send welcome email with password
-    const { data: emailData, error: emailError } = await resend.emails.send({
-      from: "CodeProbe <noreply@resend.dev>",
-      to: email,
-      subject: "Welcome to CodeProbe - Your Account Details",
+    // Send welcome email with login credentials
+    const emailResult = await resend.emails.send({
+      from: "CodeProbe <onboarding@resend.dev>",
+      to: [email],
+      subject: "Welcome to CodeProbe - Your Account is Ready",
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #6366F1;">Welcome to CodeProbe!</h1>
-          <p>Your account has been created successfully. You can now sign in using the following credentials:</p>
-          <div style="background-color: #F3F4F6; padding: 16px; border-radius: 8px; margin: 24px 0;">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #8B5CF6;">Welcome to CodeProbe!</h1>
+          <p>Your account has been created and is ready to use. Here are your login credentials:</p>
+          <div style="background-color: #F3F4F6; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <p><strong>Email:</strong> ${email}</p>
             <p><strong>Password:</strong> ${password}</p>
           </div>
-          <p>For security reasons, we recommend changing your password after your first login.</p>
-          <a href="https://your-app-url.com/signin" style="display: inline-block; background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 16px;">Sign In Now</a>
-          <p style="margin-top: 48px; font-size: 14px; color: #6B7280;">If you did not request this account, please ignore this email.</p>
+          <p>Please sign in using the link below:</p>
+          <a href="http://localhost:3000/signin" style="display: inline-block; background-color: #8B5CF6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Sign In Now</a>
+          <p style="margin-top: 20px;">For security reasons, we recommend changing your password after your first login.</p>
+          <p>If you have any questions, please don't hesitate to contact our support team.</p>
+          <p>Thanks for choosing CodeProbe for your technical assessments!</p>
         </div>
       `,
     });
 
-    if (emailError) {
-      console.error("Error sending email:", emailError);
+    if (emailResult.error) {
+      console.error("Error sending email:", emailResult.error);
     }
 
-    // Return success response
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "User created and welcome email sent" 
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("Error in create-recruiter function:", error);
-    
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || "An unexpected error occurred" 
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
-});
+};
+
+// Start the server
+serve(handler);
