@@ -9,18 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, ChevronRight, Code, FileText, Timer, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-
-// Define interface for code projects
-interface CodeProject {
-  id: number;
-  name: string;
-  description: string;
-  files_json: any;
-  created_at: string;
-}
+import { CodeProject, createTest, fetchProjects } from "@/lib/test-management-utils";
 
 const formSteps = ["Choose Project", "Configure Test", "Review & Publish"];
 
@@ -28,9 +19,10 @@ const CreateTest: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState(0);
-  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [projects, setProjects] = useState<CodeProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     timeLimit: 60,
@@ -45,33 +37,18 @@ const CreateTest: React.FC = () => {
       return;
     }
 
-    const fetchProjects = async () => {
+    const loadProjects = async () => {
       setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('code_projects')
-          .select('*');
-
-        if (error) throw error;
-        
-        setProjects(data || []);
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-        toast({
-          title: "Error loading projects",
-          description: "Could not load projects. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
+      const projectsData = await fetchProjects();
+      setProjects(projectsData);
+      setIsLoading(false);
     };
 
-    fetchProjects();
+    loadProjects();
   }, [user, navigate]);
 
-  const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplate(templateId);
+  const handleProjectSelect = (projectId: string) => {
+    setSelectedProject(projectId);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -79,8 +56,8 @@ const CreateTest: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleNext = () => {
-    if (step === 0 && !selectedTemplate) {
+  const handleNext = async () => {
+    if (step === 0 && !selectedProject) {
       toast({
         title: "Please select a project",
         description: "You need to select a project to continue.",
@@ -101,20 +78,27 @@ const CreateTest: React.FC = () => {
     if (step < formSteps.length - 1) {
       setStep(step + 1);
     } else {
-      // Submit form
-      toast({
-        title: "Test created successfully!",
-        description: "Your new test has been published.",
+      // Submit form to create the test
+      setIsSubmitting(true);
+      
+      const testId = await createTest({
+        test_title: formData.title,
+        project_id: selectedProject,
+        time_limit: formData.timeLimit,
+        primary_language: formData.language,
+        instructions: formData.instructions
       });
-      // Reset form and redirect to tests page
-      setStep(0);
-      setSelectedTemplate("");
-      setFormData({
-        title: "",
-        timeLimit: 60,
-        language: "javascript",
-        instructions: ""
-      });
+      
+      setIsSubmitting(false);
+      
+      if (testId) {
+        // Navigate to test management page
+        toast({
+          title: "Test created successfully!",
+          description: "Your new test has been published.",
+        });
+        navigate("/dashboard/tests");
+      }
     }
   };
 
@@ -147,7 +131,7 @@ const CreateTest: React.FC = () => {
   };
 
   // Helper function to determine icon based on project name
-  const getProjectIcon = (projectName: string) => {
+  const getProjectIcon = (projectName: string | null) => {
     const name = projectName?.toLowerCase() || "";
     if (name.includes("react") || name.includes("frontend")) return <Code className="h-5 w-5 text-primary" />;
     if (name.includes("node") || name.includes("api")) return <FileText className="h-5 w-5 text-primary" />;
@@ -220,9 +204,9 @@ const CreateTest: React.FC = () => {
                   <Card 
                     key={project.id}
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedTemplate === project.id.toString() ? "border-2 border-primary" : ""
+                      selectedProject === project.id.toString() ? "border-2 border-primary" : ""
                     }`}
-                    onClick={() => handleTemplateSelect(project.id.toString())}
+                    onClick={() => handleProjectSelect(project.id.toString())}
                   >
                     <CardHeader className="flex flex-row items-start justify-between">
                       <div>
@@ -331,7 +315,7 @@ const CreateTest: React.FC = () => {
                     <div className="flex justify-between">
                       <span className="text-sm font-medium">Project</span>
                       <span className="text-sm">
-                        {projects.find(p => p.id.toString() === selectedTemplate)?.name}
+                        {projects.find(p => p.id.toString() === selectedProject)?.name}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -369,9 +353,24 @@ const CreateTest: React.FC = () => {
           >
             Back
           </Button>
-          <Button onClick={handleNext} className="flex items-center gap-2">
-            {step === formSteps.length - 1 ? "Publish Test" : "Continue"}
-            <ChevronRight className="h-4 w-4" />
+          <Button 
+            onClick={handleNext} 
+            className="flex items-center gap-2"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Publishing...
+              </>
+            ) : step === formSteps.length - 1 ? (
+              "Publish Test"
+            ) : (
+              <>
+                Continue
+                <ChevronRight className="h-4 w-4" />
+              </>
+            )}
           </Button>
         </div>
       </motion.div>
