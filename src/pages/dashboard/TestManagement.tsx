@@ -13,7 +13,8 @@ import {
   Search, 
   SortAsc, 
   Trash2, 
-  Users
+  Users,
+  Loader2
 } from "lucide-react";
 import {
   Table,
@@ -40,22 +41,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react";
-
-// Types for the test data
-interface Test {
-  id: string;
-  test_title: string;
-  project_id?: string;
-  created_at: string;
-  status: string;
-  candidate_count?: number;
-}
+import { fetchTests, deleteTest, duplicateTest, Test } from "@/lib/test-management-utils";
 
 // Animation variants
 const containerVariants = {
@@ -94,46 +82,14 @@ const TestManagement: React.FC = () => {
       return;
     }
 
-    const fetchTests = async () => {
+    const loadTests = async () => {
       setIsLoading(true);
-      try {
-        // Fetch the tests
-        const { data: testsData, error: testsError } = await supabase
-          .from('tests')
-          .select('*');
-
-        if (testsError) throw testsError;
-
-        // For each test, get the count of candidates
-        const testsWithCounts = await Promise.all(testsData.map(async (test) => {
-          const { count, error } = await supabase
-            .from('test_assignments')
-            .select('*', { count: 'exact', head: true })
-            .eq('test_id', test.id);
-          
-          return {
-            ...test,
-            id: test.id.toString(),
-            candidate_count: count || 0,
-            // Default status if not available in DB
-            status: test.status || (count && count > 0 ? 'active' : 'draft')
-          };
-        }));
-
-        setTests(testsWithCounts);
-      } catch (error) {
-        console.error("Error fetching tests:", error);
-        toast({
-          title: "Error loading tests",
-          description: "Could not load your tests. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
+      const testsData = await fetchTests();
+      setTests(testsData);
+      setIsLoading(false);
     };
 
-    fetchTests();
+    loadTests();
   }, [user, navigate]);
 
   const formatDate = (dateString: string) => {
@@ -153,77 +109,20 @@ const TestManagement: React.FC = () => {
   const confirmDelete = async () => {
     if (!testToDelete) return;
     
-    try {
-      const { error } = await supabase
-        .from('tests')
-        .delete()
-        .eq('id', testToDelete);
-
-      if (error) throw error;
-
+    const success = await deleteTest(testToDelete);
+    if (success) {
       setTests(tests.filter(test => test.id !== testToDelete));
-      
-      toast({
-        title: "Test deleted",
-        description: "The test has been deleted successfully"
-      });
-    } catch (error) {
-      console.error("Error deleting test:", error);
-      toast({
-        title: "Error deleting test",
-        description: "Could not delete the test. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleteDialogOpen(false);
-      setTestToDelete(null);
     }
+    
+    setIsDeleteDialogOpen(false);
+    setTestToDelete(null);
   };
 
   const handleDuplicate = async (testId: string) => {
-    try {
-      // Get the test to duplicate
-      const { data: testToDuplicate, error: fetchError } = await supabase
-        .from('tests')
-        .select('*')
-        .eq('id', testId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Create a new test with the same data
-      const { data: newTest, error: insertError } = await supabase
-        .from('tests')
-        .insert({
-          test_title: `${testToDuplicate.test_title} (Copy)`,
-          project_id: testToDuplicate.project_id,
-          company_id: testToDuplicate.company_id,
-          notes: testToDuplicate.notes,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      // Add the new test to the list
-      setTests([...tests, {
-        ...newTest,
-        id: newTest.id.toString(),
-        candidate_count: 0,
-        status: 'draft'
-      }]);
-
-      toast({
-        title: "Test duplicated",
-        description: "A copy of the test has been created"
-      });
-    } catch (error) {
-      console.error("Error duplicating test:", error);
-      toast({
-        title: "Error duplicating test",
-        description: "Could not duplicate the test. Please try again.",
-        variant: "destructive",
-      });
+    const newTest = await duplicateTest(testId);
+    
+    if (newTest) {
+      setTests([...tests, newTest]);
     }
   };
 

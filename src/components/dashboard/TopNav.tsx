@@ -69,11 +69,11 @@ const TopNav: React.FC<TopNavProps> = ({ title }) => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
-                  {user?.image ? (
-                    <AvatarImage src={user.image} alt={user.name} />
+                  {user?.user_metadata?.avatar_url ? (
+                    <AvatarImage src={user.user_metadata.avatar_url} alt={user.user_metadata?.name || 'User'} />
                   ) : (
                     <AvatarFallback className="bg-primary/10 text-primary">
-                      {user?.name?.charAt(0) || "U"}
+                      {user?.user_metadata?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
                     </AvatarFallback>
                   )}
                 </Avatar>

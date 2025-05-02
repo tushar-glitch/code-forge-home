@@ -128,16 +128,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <SidebarFooter className="p-4">
               <div className="flex items-center gap-2 mb-4">
                 <Avatar>
-                  {user?.image ? (
-                    <AvatarImage src={user.image} alt={user.name} />
+                  {user?.user_metadata?.avatar_url ? (
+                    <AvatarImage src={user.user_metadata.avatar_url} alt={user.user_metadata?.name || 'User'} />
                   ) : (
                     <AvatarFallback className="bg-primary/10 text-primary">
-                      {user?.name?.charAt(0) || "U"}
+                      {user?.user_metadata?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
                     </AvatarFallback>
                   )}
                 </Avatar>
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium">{user?.name}</span>
+                  <span className="text-sm font-medium">{user?.user_metadata?.name || user?.email}</span>
                   <span className="text-xs text-muted-foreground">{user?.email}</span>
                 </div>
               </div>

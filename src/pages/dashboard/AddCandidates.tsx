@@ -1,13 +1,17 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Loader2, Mail, UploadCloud, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Download, Loader2, Mail, UploadCloud, X, Link, Send } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { addCandidate, fetchTests, generateTestAssignment, sendTestInvitation, Test } from "@/lib/test-management-utils";
 
 // Animation variants
 const containerVariants = {
@@ -31,11 +35,43 @@ const itemVariants = {
   }
 };
 
+interface CandidateWithLink {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  testLink?: string;
+  status?: string;
+}
+
 const AddCandidates: React.FC = () => {
-  const [candidates, setCandidates] = useState<string[]>([]);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [selectedTest, setSelectedTest] = useState<string>("");
+  const [tests, setTests] = useState<Test[]>([]);
+  const [candidates, setCandidates] = useState<CandidateWithLink[]>([]);
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/signin");
+      return;
+    }
+
+    const loadTests = async () => {
+      setIsLoading(true);
+      const testsData = await fetchTests();
+      setTests(testsData);
+      setIsLoading(false);
+    };
+
+    loadTests();
+  }, [user, navigate]);
 
   const handleAddCandidate = () => {
     if (!email) return;
@@ -51,7 +87,7 @@ const AddCandidates: React.FC = () => {
       return;
     }
 
-    if (candidates.includes(email)) {
+    if (candidates.find(c => c.email === email)) {
       toast({
         title: "Duplicate email",
         description: "This email is already in the list",
@@ -60,8 +96,17 @@ const AddCandidates: React.FC = () => {
       return;
     }
 
-    setCandidates([...candidates, email]);
+    const newCandidate: CandidateWithLink = {
+      email,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      status: "pending"
+    };
+
+    setCandidates([...candidates, newCandidate]);
     setEmail("");
+    setFirstName("");
+    setLastName("");
   };
 
   const handleRemoveCandidate = (index: number) => {
@@ -76,38 +121,87 @@ const AddCandidates: React.FC = () => {
     const file = e.target.files[0];
     setIsUploading(true);
     
-    // Simulate file upload and processing
-    setTimeout(() => {
-      // In a real app, you'd parse the CSV here
-      const mockEmails = [
-        "john.doe@example.com",
-        "jane.smith@example.com",
-        "robert.johnson@example.com",
-        "emily.williams@example.com",
-        "michael.brown@example.com"
-      ];
-      
-      const newCandidates = [...candidates];
-      mockEmails.forEach(email => {
-        if (!newCandidates.includes(email)) {
-          newCandidates.push(email);
+    // Read and parse CSV file
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const csvData = event.target?.result as string;
+        const lines = csvData.split("\n");
+        const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+        
+        const emailIndex = headers.indexOf("email");
+        const firstNameIndex = headers.indexOf("firstname") !== -1 
+          ? headers.indexOf("firstname") 
+          : headers.indexOf("first_name") !== -1 
+            ? headers.indexOf("first_name") 
+            : headers.indexOf("first name");
+            
+        const lastNameIndex = headers.indexOf("lastname") !== -1 
+          ? headers.indexOf("lastname") 
+          : headers.indexOf("last_name") !== -1 
+            ? headers.indexOf("last_name") 
+            : headers.indexOf("last name");
+        
+        if (emailIndex === -1) {
+          throw new Error("CSV file must contain an 'email' column");
         }
-      });
-      
-      setCandidates(newCandidates);
-      setIsUploading(false);
-      
-      toast({
-        title: "CSV processed",
-        description: `Added ${mockEmails.length} candidates from CSV`,
-      });
-    }, 1500);
+        
+        const newCandidates = [...candidates];
+        let addedCount = 0;
+        
+        // Start from line 1 (skip headers)
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue; // Skip empty lines
+          
+          const values = lines[i].split(",").map(v => v.trim());
+          const candidateEmail = values[emailIndex];
+          
+          // Skip if email is invalid or already in the list
+          if (!candidateEmail || !candidateEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) || candidates.find(c => c.email === candidateEmail)) {
+            continue;
+          }
+          
+          const candidate: CandidateWithLink = {
+            email: candidateEmail,
+            status: "pending"
+          };
+          
+          if (firstNameIndex !== -1 && values[firstNameIndex]) {
+            candidate.firstName = values[firstNameIndex];
+          }
+          
+          if (lastNameIndex !== -1 && values[lastNameIndex]) {
+            candidate.lastName = values[lastNameIndex];
+          }
+          
+          newCandidates.push(candidate);
+          addedCount++;
+        }
+        
+        setCandidates(newCandidates);
+        
+        toast({
+          title: "CSV processed",
+          description: `Added ${addedCount} candidates from CSV`,
+        });
+      } catch (error: any) {
+        toast({
+          title: "Error processing CSV",
+          description: error.message || "Could not parse the CSV file",
+          variant: "destructive"
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    };
+    
+    reader.readAsText(file);
     
     // Reset file input
     e.target.value = "";
   };
 
-  const handleGenerateLinks = () => {
+  const handleGenerateLinks = async () => {
     if (candidates.length === 0) {
       toast({
         title: "No candidates",
@@ -117,17 +211,131 @@ const AddCandidates: React.FC = () => {
       return;
     }
     
+    if (!selectedTest) {
+      toast({
+        title: "No test selected",
+        description: "Please select a test first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsGenerating(true);
     
-    // Simulate link generation
-    setTimeout(() => {
-      setIsGenerating(false);
-      
+    // Generate links for each candidate
+    const updatedCandidates = [...candidates];
+    const selectedTestData = tests.find(t => t.id === selectedTest);
+    
+    if (!selectedTestData) {
       toast({
-        title: "Links generated",
-        description: `Generated links for ${candidates.length} candidates`,
+        title: "Test not found",
+        description: "The selected test could not be found",
+        variant: "destructive"
       });
-    }, 1500);
+      setIsGenerating(false);
+      return;
+    }
+    
+    for (let i = 0; i < updatedCandidates.length; i++) {
+      if (!updatedCandidates[i].testLink) {
+        try {
+          // Add candidate to the database
+          const candidateId = await addCandidate({
+            email: updatedCandidates[i].email,
+            first_name: updatedCandidates[i].firstName,
+            last_name: updatedCandidates[i].lastName
+          });
+          
+          if (candidateId) {
+            // Generate test assignment and get access link
+            const accessLink = await generateTestAssignment(selectedTest, candidateId);
+            
+            if (accessLink) {
+              updatedCandidates[i].testLink = `${window.location.origin}/test/${accessLink}`;
+              updatedCandidates[i].status = "ready";
+            }
+          }
+        } catch (error) {
+          console.error("Error generating link for candidate:", error);
+        }
+      }
+    }
+    
+    setCandidates(updatedCandidates);
+    setIsGenerating(false);
+    
+    toast({
+      title: "Links generated",
+      description: `Generated links for ${updatedCandidates.filter(c => c.testLink).length} candidates`,
+    });
+  };
+  
+  const handleSendInvitations = async () => {
+    if (candidates.length === 0 || !candidates.some(c => c.testLink)) {
+      toast({
+        title: "No links to send",
+        description: "Please generate test links first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSending(true);
+    
+    const selectedTestData = tests.find(t => t.id === selectedTest);
+    if (!selectedTestData || !selectedTestData.test_title) {
+      toast({
+        title: "Test not found",
+        description: "The selected test information is incomplete",
+        variant: "destructive"
+      });
+      setIsSending(false);
+      return;
+    }
+    
+    const updatedCandidates = [...candidates];
+    let sentCount = 0;
+    
+    for (let i = 0; i < updatedCandidates.length; i++) {
+      const candidate = updatedCandidates[i];
+      
+      if (candidate.testLink && candidate.status !== "sent") {
+        try {
+          const success = await sendTestInvitation(
+            candidate.email,
+            selectedTestData.test_title,
+            candidate.testLink,
+            candidate.firstName
+          );
+          
+          if (success) {
+            updatedCandidates[i].status = "sent";
+            sentCount++;
+          }
+        } catch (error) {
+          console.error("Error sending invitation:", error);
+        }
+      }
+    }
+    
+    setCandidates(updatedCandidates);
+    setIsSending(false);
+    
+    toast({
+      title: "Invitations sent",
+      description: `Sent ${sentCount} test invitations`,
+    });
+  };
+  
+  const getStatusBadgeClass = (status?: string) => {
+    switch (status) {
+      case "sent":
+        return "bg-green-500/10 text-green-600";
+      case "ready":
+        return "bg-blue-500/10 text-blue-600";
+      default:
+        return "bg-yellow-500/10 text-yellow-600";
+    }
   };
 
   return (
@@ -138,6 +346,50 @@ const AddCandidates: React.FC = () => {
         animate="visible"
         className="space-y-6"
       >
+        {/* Test Selection Section */}
+        <motion.section variants={itemVariants}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Test</CardTitle>
+              <CardDescription>
+                Choose which test to send to candidates
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading tests...</span>
+                </div>
+              ) : tests.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-muted-foreground">No tests available. Please create a test first.</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-2"
+                    onClick={() => navigate('/dashboard/create-test')}
+                  >
+                    Create Test
+                  </Button>
+                </div>
+              ) : (
+                <Select value={selectedTest} onValueChange={setSelectedTest}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a test" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tests.map((test) => (
+                      <SelectItem key={test.id} value={test.id}>
+                        {test.test_title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </CardContent>
+          </Card>
+        </motion.section>
+
         {/* Add Candidates Section */}
         <motion.section variants={itemVariants}>
           <Card>
@@ -148,22 +400,44 @@ const AddCandidates: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Manual Email Entry */}
+              {/* Manual Entry */}
               <div className="space-y-4">
-                <Label htmlFor="email">Candidate Email</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="email"
-                    placeholder="candidate@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddCandidate();
-                      }
-                    }}
-                  />
-                  <Button onClick={handleAddCandidate}>Add</Button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="firstName">First Name (Optional)</Label>
+                    <Input
+                      id="firstName"
+                      placeholder="John"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="lastName">Last Name (Optional)</Label>
+                    <Input
+                      id="lastName"
+                      placeholder="Doe"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email Address*</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="email"
+                        placeholder="john@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleAddCandidate();
+                          }
+                        }}
+                      />
+                      <Button onClick={handleAddCandidate}>Add</Button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -224,35 +498,88 @@ const AddCandidates: React.FC = () => {
                         key={index}
                         className="flex items-center justify-between p-2 bg-muted rounded-md"
                       >
-                        <div className="flex items-center">
-                          <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{candidate}</span>
+                        <div className="flex items-center flex-1 overflow-hidden mr-2">
+                          <Mail className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                          <div className="truncate">
+                            <span className="text-sm">
+                              {(candidate.firstName || candidate.lastName) ? 
+                                `${candidate.firstName || ''} ${candidate.lastName || ''} ` : ''}
+                              &lt;{candidate.email}&gt;
+                            </span>
+                            {candidate.testLink && (
+                              <div className="text-xs text-muted-foreground truncate">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] mr-2 ${getStatusBadgeClass(candidate.status)}`}>
+                                  {candidate.status}
+                                </span>
+                                {candidate.testLink}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveCandidate(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {candidate.testLink && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                navigator.clipboard.writeText(candidate.testLink || '');
+                                toast({ title: "Link copied to clipboard" });
+                              }}
+                            >
+                              <Link className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveCandidate(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-col sm:flex-row justify-between gap-2">
                     <Button variant="outline" disabled={candidates.length === 0}>
                       <Download className="h-4 w-4 mr-2" />
                       Export List
                     </Button>
-                    <Button onClick={handleGenerateLinks} disabled={isGenerating || candidates.length === 0}>
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        "Generate Test Links"
-                      )}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={handleGenerateLinks} 
+                        disabled={isGenerating || candidates.length === 0 || !selectedTest}
+                      >
+                        {isGenerating ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Link className="mr-2 h-4 w-4" />
+                            Generate Links
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        onClick={handleSendInvitations} 
+                        disabled={isSending || !candidates.some(c => c.testLink)}
+                      >
+                        {isSending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="mr-2 h-4 w-4" />
+                            Send Invitations
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </>
               ) : (
