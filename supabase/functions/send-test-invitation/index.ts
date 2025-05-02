@@ -1,44 +1,35 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
-
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
-
-interface TestInvitationRequest {
-  email: string;
-  testTitle: string;
-  accessLink: string;
-  firstName?: string;
-}
-
-serve(async (req) => {
+serve(async (req)=>{
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      headers: corsHeaders
+    });
   }
-
   try {
-    const { email, testTitle, accessLink, firstName }: TestInvitationRequest = await req.json();
-
+    const { email, testTitle, accessLink, firstName } = await req.json();
     if (!email || !testTitle || !accessLink) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
+      return new Response(JSON.stringify({
+        error: "Missing required fields"
+      }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
         }
-      );
+      });
     }
-
-    const emailResponse = await resend.emails.send({
-      from: "Hire10x <onboarding@resend.dev>",
-      to: [email],
+    const { data: emailData, error: emailError } = await resend.emails.send({
+      from: "Hire10xDevs <noreply@hire10xdevs.site>",
+      to: [
+        email
+      ],
       subject: `You've been invited to take a coding test: ${testTitle}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -85,31 +76,33 @@ serve(async (req) => {
             This is an automated email. Please do not reply directly to this message.
           </p>
         </div>
-      `,
+      `
     });
-
-    console.log("Email sent successfully:", emailResponse);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        message: "Test invitation sent successfully" 
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+    if (emailError) {
+      console.error("Error sending email:", emailError);
+      throw new Error(`Error creating user: ${emailError}`);
+    }
+    console.log("Email sent successfully:", emailData);
+    return new Response(JSON.stringify({
+      success: true,
+      message: "Test invitation sent successfully"
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders
       }
-    );
+    });
   } catch (error) {
     console.error("Error sending test invitation:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: `Failed to send test invitation: ${error.message}` 
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+    return new Response(JSON.stringify({
+      error: `Failed to send test invitation: ${error.message}`
+    }), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders
       }
-    );
+    });
   }
 });

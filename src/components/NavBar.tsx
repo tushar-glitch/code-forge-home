@@ -47,6 +47,8 @@ const NavBar = () => {
             <NavLink href="#how-it-works">How it works</NavLink>
             <NavLink href="#testimonials">Testimonials</NavLink>
             <NavLink href="#faq">FAQ</NavLink>
+            <NavLink href="#pricing">Pricing</NavLink>
+            <NavLink href="for_candidates">For Candidates</NavLink>
           </div>
 
           <div className="hidden md:flex items-center gap-4">
@@ -72,7 +74,8 @@ const NavBar = () => {
             <NavLink href="#features" mobile>Features</NavLink>
             <NavLink href="#how-it-works" mobile>How it works</NavLink>
             <NavLink href="#testimonials" mobile>Testimonials</NavLink>
-            <NavLink href="#faq" mobile>FAQ</NavLink>
+            <NavLink href="#faq" mobile>FAQe</NavLink>
+            <NavLink href="#pricing" mobile>Pricing</NavLink>
             <div className="flex flex-col gap-2 mt-4">
               <AuthButton />
               <Button variant="default" size="sm" className="w-full" onClick={() => navigate("/get-started")}>
