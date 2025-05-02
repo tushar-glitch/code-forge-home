@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -36,11 +35,7 @@ const AuthButton = () => {
 
   if (!user) {
     return (
-      <Button 
-        variant="ghost" 
-        size="lg" 
-        onClick={() => navigate("/signin")}
-      >
+      <Button variant="ghost" size="lg" onClick={() => navigate("/signin")}>
         Login
       </Button>
     );
@@ -48,7 +43,11 @@ const AuthButton = () => {
 
   // Get user metadata or default values
   const userMetadata = user.user_metadata || {};
-  const userName = userMetadata.full_name || userMetadata.name || user.email?.split('@')[0] || 'User';
+  const userName =
+    userMetadata.full_name ||
+    userMetadata.name ||
+    user.email?.split("@")[0] ||
+    "User";
   const userImage = userMetadata.avatar_url || userMetadata.image || null;
 
   return (
@@ -60,7 +59,7 @@ const AuthButton = () => {
               <AvatarImage src={userImage} alt={userName} />
             ) : (
               <AvatarFallback className="bg-primary/10 text-primary">
-                {user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                {user?.email?.charAt(0)?.toUpperCase() || "U"}
               </AvatarFallback>
             )}
           </Avatar>
@@ -73,6 +72,13 @@ const AuthButton = () => {
             <p className="text-sm text-muted-foreground">{user.email}</p>
           </div>
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => navigate("/dashboard")}
+        >
+          Dashboard
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer"
