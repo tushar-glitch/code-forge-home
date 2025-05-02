@@ -28,9 +28,9 @@ const HowItWorksSection = () => {
   const steps = [
     {
       icon: <Code className="h-6 w-6" />,
-      title: "Create challenges",
+      title: "Pick a challenge",
       description:
-        "Design real-world challenges based on your actual codebase and the skills you need. Upload projects, create bug fixes, or feature implementations.",
+        "Pick a real-world challenge based on your actual codebase and the skills you need. Upload projects, create bug fixes, or feature implementations.",
     },
     {
       icon: <MonitorPlay className="h-6 w-6" />,
