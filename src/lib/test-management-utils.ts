@@ -40,6 +40,17 @@ export interface TestAssignment {
   completed_at: string | null;
   status: string | null;
   access_link: string | null;
+  test?: {
+    test_title: string | null;
+    instructions: string | null;
+    time_limit: number | null;
+    primary_language: string | null;
+  };
+  candidate?: {
+    email: string | null;
+    first_name: string | null;
+    last_name: string | null;
+  };
 }
 
 // Create a new test
@@ -56,11 +67,11 @@ export const createTest = async (testData: {
       .from('tests')
       .insert({
         test_title: testData.test_title,
-        project_id: testData.project_id,
+        project_id: parseInt(testData.project_id),
         time_limit: testData.time_limit,
         primary_language: testData.primary_language,
         instructions: testData.instructions,
-        company_id: testData.company_id || null
+        company_id: testData.company_id ? parseInt(testData.company_id) : null
       })
       .select('id')
       .single();
@@ -142,7 +153,7 @@ export const fetchTests = async (): Promise<Test[]> => {
         project_id: test.project_id?.toString() || null,
         company_id: test.company_id?.toString() || null,
         candidate_count: count || 0,
-        status: test.status || (count && count > 0 ? 'active' : 'draft')
+        status: 'active' // Default status, you can customize this based on your needs
       };
     }));
 
@@ -159,7 +170,7 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
     const { error } = await supabase
       .from('tests')
       .delete()
-      .eq('id', testId);
+      .eq('id', parseInt(testId));
 
     if (error) {
       toast({
@@ -188,7 +199,7 @@ export const duplicateTest = async (testId: string): Promise<Test | null> => {
     const { data: testToDuplicate, error: fetchError } = await supabase
       .from('tests')
       .select('*')
-      .eq('id', testId)
+      .eq('id', parseInt(testId))
       .single();
 
     if (fetchError) {
@@ -304,7 +315,7 @@ export const generateTestAssignment = async (testId: string, candidateId: number
     const { data: existingAssignment, error: checkError } = await supabase
       .from('test_assignments')
       .select('*')
-      .eq('test_id', testId)
+      .eq('test_id', parseInt(testId))
       .eq('candidate_id', candidateId)
       .maybeSingle();
 
@@ -409,6 +420,73 @@ export const sendTestInvitation = async (
       description: error.message || "An error occurred",
       variant: "destructive"
     });
+    return false;
+  }
+};
+
+// Get candidate assignments
+export const getCandidateAssignments = async (candidateEmail: string): Promise<TestAssignment[]> => {
+  try {
+    // First get the candidate ID
+    const { data: candidate, error: candidateError } = await supabase
+      .from('candidates')
+      .select('id')
+      .eq('email', candidateEmail)
+      .maybeSingle();
+    
+    if (candidateError || !candidate) {
+      console.error("Error finding candidate:", candidateError);
+      return [];
+    }
+
+    // Then get all assignments for this candidate
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('test_assignments')
+      .select(`
+        *,
+        test:tests(*),
+        candidate:candidates(*)
+      `)
+      .eq('candidate_id', candidate.id);
+    
+    if (assignmentsError) {
+      console.error("Error fetching assignments:", assignmentsError);
+      return [];
+    }
+
+    return assignments as TestAssignment[];
+  } catch (error) {
+    console.error("Error getting candidate assignments:", error);
+    return [];
+  }
+};
+
+// Update assignment status
+export const updateAssignmentStatus = async (assignmentId: number, status: string, started?: boolean, completed?: boolean): Promise<boolean> => {
+  try {
+    const updates: any = { status };
+    
+    if (started) {
+      updates.started_at = new Date().toISOString();
+    }
+    
+    if (completed) {
+      updates.completed_at = new Date().toISOString();
+    }
+    
+    const { error } = await supabase
+      .from('test_assignments')
+      .update(updates)
+      .eq('id', assignmentId);
+    
+    if (error) {
+      console.error("Error updating assignment status:", error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error updating assignment status:", error);
     return false;
   }
 };

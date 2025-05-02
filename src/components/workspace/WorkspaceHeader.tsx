@@ -1,62 +1,38 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CheckCircle, Clock, HelpCircle, Loader2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Loader2 } from "lucide-react";
 
 interface WorkspaceHeaderProps {
-  onSubmit: () => void;
+  testTitle: string;
   autosaveStatus: "saved" | "saving" | "error";
-  testTitle?: string;
+  onSubmit: () => void;
+  isSubmitting?: boolean;
 }
 
-export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({ 
-  onSubmit,
-  autosaveStatus,
-  testTitle = "Coding Test"
-}) => {
+export function WorkspaceHeader({ testTitle, autosaveStatus, onSubmit, isSubmitting = false }: WorkspaceHeaderProps) {
   return (
-    <header className="border-b border-border flex items-center justify-between px-6 py-3 bg-card">
-      <div className="flex items-center gap-2">
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs">CP</AvatarFallback>
-        </Avatar>
-        <span className="font-medium">{testTitle}</span>
-      </div>
-
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {autosaveStatus === "saved" && (
-          <>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-            All changes saved
-          </>
-        )}
-        {autosaveStatus === "saving" && (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Saving...
-          </>
-        )}
-        {autosaveStatus === "error" && (
-          <>
-            <span className="text-destructive">Error saving</span>
-          </>
-        )}
-      </div>
-
+    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1">
-          <Clock className="h-4 w-4" />
-          <span className="text-sm">45:00</span>
+        <h1 className="text-lg font-medium">{testTitle}</h1>
+        <Separator orientation="vertical" className="h-6" />
+        <div className="text-sm text-muted-foreground">
+          {autosaveStatus === "saved" && "All changes saved"}
+          {autosaveStatus === "saving" && "Saving..."}
+          {autosaveStatus === "error" && "Error saving changes"}
         </div>
-
-        <Button variant="outline" size="sm">
-          <HelpCircle className="mr-1 h-4 w-4" />
-          Help
+      </div>
+      <div>
+        <Button 
+          onClick={onSubmit} 
+          disabled={isSubmitting}
+          className="gap-2"
+        >
+          {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+          {isSubmitting ? "Submitting..." : "Submit Test"}
         </Button>
-        
-        <Button onClick={onSubmit}>Submit</Button>
       </div>
     </header>
   );
-};
+}

@@ -15,6 +15,7 @@ import { dummyFileSystem } from "@/lib/dummy-data";
 import { FileType } from "@/types/file";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { updateAssignmentStatus } from "@/lib/test-management-utils";
 
 const InterviewWorkspace: React.FC = () => {
   const { toast } = useToast();
@@ -32,6 +33,7 @@ const InterviewWorkspace: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<any>(null);
   const [assignmentData, setAssignmentData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize file system with dummy data for now
   const [fileSystem, setFileSystem] = useState(dummyFileSystem);
@@ -51,11 +53,16 @@ const InterviewWorkspace: React.FC = () => {
           const { data: assignment, error: assignmentError } = await supabase
             .from('test_assignments')
             .select('*, test:tests(*), candidate:candidates(*)')
-            .eq('id', assignmentId)
+            .eq('id', parseInt(assignmentId))
             .single();
 
           if (assignmentError) throw assignmentError;
           setAssignmentData(assignment);
+
+          // Mark the assignment as started if not already
+          if (assignment.status === 'pending') {
+            await updateAssignmentStatus(parseInt(assignmentId), 'in-progress', true, false);
+          }
 
           // Get the project data for this test
           if (assignment.test?.project_id) {
@@ -85,7 +92,7 @@ const InterviewWorkspace: React.FC = () => {
           const { data: submissions, error: submissionsError } = await supabase
             .from('submissions')
             .select('*')
-            .eq('assignment_id', assignmentId)
+            .eq('assignment_id', parseInt(assignmentId))
             .order('created_at', { ascending: false });
 
           if (submissionsError) throw submissionsError;
@@ -192,8 +199,8 @@ const InterviewWorkspace: React.FC = () => {
         const { error } = await supabase
           .from('submissions')
           .insert({
-            assignment_id: assignmentId,
-            content: JSON.stringify(fileContents),
+            assignment_id: parseInt(assignmentId),
+            content: JSON.stringify({...fileContents, [fileId]: value}),
             saved_at: new Date().toISOString()
           });
           
@@ -216,27 +223,29 @@ const InterviewWorkspace: React.FC = () => {
         description: "This is just a demo. In a real test, your work would be submitted for review.",
       });
       // In a demo, just navigate back to the dashboard
-      setTimeout(() => navigate("/dashboard"), 2000);
+      setTimeout(() => navigate("/candidate-dashboard"), 2000);
       return;
     }
 
+    setIsSubmitting(true);
     try {
       // Mark the assignment as completed
-      const { error: updateError } = await supabase
-        .from('test_assignments')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', assignmentId);
+      const updated = await updateAssignmentStatus(
+        parseInt(assignmentId), 
+        'completed', 
+        false, 
+        true
+      );
 
-      if (updateError) throw updateError;
+      if (!updated) {
+        throw new Error("Failed to update assignment status");
+      }
 
       // Create a final submission
       const { error: submissionError } = await supabase
         .from('submissions')
         .insert({
-          assignment_id: assignmentId,
+          assignment_id: parseInt(assignmentId),
           content: JSON.stringify(fileContents),
           saved_at: new Date().toISOString()
         });
@@ -248,8 +257,8 @@ const InterviewWorkspace: React.FC = () => {
         description: "Your work has been submitted for review.",
       });
 
-      // Redirect to a thank you or completion page
-      setTimeout(() => navigate("/dashboard"), 2000);
+      // Redirect to the candidate dashboard
+      setTimeout(() => navigate("/candidate-dashboard"), 2000);
     } catch (error) {
       console.error("Error submitting assignment:", error);
       toast({
@@ -257,6 +266,7 @@ const InterviewWorkspace: React.FC = () => {
         description: "Failed to submit your work. Please try again.",
         variant: "destructive",
       });
+      setIsSubmitting(false);
     }
   };
 
@@ -278,6 +288,7 @@ const InterviewWorkspace: React.FC = () => {
         onSubmit={handleSubmit}
         autosaveStatus={autosaveStatus}
         testTitle={assignmentData?.test?.test_title || "Coding Test"}
+        isSubmitting={isSubmitting}
       />
       
       {/* Main Content */}
