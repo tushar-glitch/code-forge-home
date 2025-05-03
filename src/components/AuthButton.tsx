@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -8,20 +9,47 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const AuthButton = () => {
   const { user, signOut, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isCandidate, setIsCandidate] = useState(false);
+
+  useEffect(() => {
+    const checkIfCandidate = async () => {
+      if (user?.email) {
+        const { data } = await supabase
+          .from('candidates')
+          .select('*')
+          .eq('email', user.email)
+          .maybeSingle();
+        
+        setIsCandidate(!!data);
+      }
+    };
+
+    if (user) {
+      checkIfCandidate();
+    }
+  }, [user]);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
     await signOut();
     setIsSigningOut(false);
     navigate("/");
+  };
+
+  const handleSignIn = () => {
+    // Determine if we're in a candidate context based on URL
+    const isCandidateContext = location.pathname.includes('candidate');
+    navigate(isCandidateContext ? "/candidate-signin" : "/signin");
   };
 
   if (isLoading) {
@@ -35,7 +63,7 @@ const AuthButton = () => {
 
   if (!user) {
     return (
-      <Button variant="ghost" size="lg" onClick={() => navigate("/signin")}>
+      <Button variant="ghost" size="lg" onClick={handleSignIn}>
         Login
       </Button>
     );
@@ -75,9 +103,9 @@ const AuthButton = () => {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate(isCandidate ? "/candidate-dashboard" : "/dashboard")}
         >
-          Dashboard
+          {isCandidate ? "My Assignments" : "Dashboard"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

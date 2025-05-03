@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Editor from "@monaco-editor/react";
 import { FileExplorer } from "@/components/workspace/FileExplorer";
@@ -15,14 +15,13 @@ import { dummyFileSystem } from "@/lib/dummy-data";
 import { FileType } from "@/types/file";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { updateAssignmentStatus } from "@/lib/test-management-utils";
+import { getAssignmentDetails, updateAssignmentStatus } from "@/lib/test-management-utils";
 
 const InterviewWorkspace: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { assignmentId } = useParams(); // For getting the assignment ID from the URL
-  const location = useLocation();
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(false);
@@ -50,26 +49,25 @@ const InterviewWorkspace: React.FC = () => {
       try {
         // If we have an assignmentId, fetch the assignment
         if (assignmentId) {
-          const { data: assignment, error: assignmentError } = await supabase
-            .from('test_assignments')
-            .select('*, test:tests(*), candidate:candidates(*)')
-            .eq('id', parseInt(assignmentId))
-            .single();
-
-          if (assignmentError) throw assignmentError;
-          setAssignmentData(assignment);
+          const assignmentDetails = await getAssignmentDetails(parseInt(assignmentId));
+          
+          if (!assignmentDetails) {
+            throw new Error("Assignment not found");
+          }
+          
+          setAssignmentData(assignmentDetails);
 
           // Mark the assignment as started if not already
-          if (assignment.status === 'pending') {
+          if (assignmentDetails.status === 'pending') {
             await updateAssignmentStatus(parseInt(assignmentId), 'in-progress', true, false);
           }
 
           // Get the project data for this test
-          if (assignment.test?.project_id) {
+          if (assignmentDetails.test?.project_id) {
             const { data: project, error: projectError } = await supabase
               .from('code_projects')
               .select('*')
-              .eq('id', assignment.test.project_id)
+              .eq('id', assignmentDetails.test.project_id)
               .single();
 
             if (projectError) throw projectError;

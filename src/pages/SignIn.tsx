@@ -9,20 +9,32 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 
-const SignIn = () => {
+interface SignInProps {
+  userType?: "recruiter" | "candidate";
+  onSuccess?: () => void;
+}
+
+const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
   const { user, signInWithEmail, signUp, signIn, isLoading } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   useEffect(() => {
-    // Redirect if user is already authenticated
-    if (user && !isLoading) {
-      navigate("/dashboard");
+    // Redirect if user is already authenticated (for standard page loads, not modal)
+    if (user && !isLoading && !onSuccess) {
+      if (userType === "recruiter") {
+        navigate("/dashboard");
+      } else {
+        navigate("/candidate-dashboard");
+      }
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, onSuccess, userType]);
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
@@ -46,11 +58,33 @@ const SignIn = () => {
     try {
       const { error } = await signInWithEmail(email, password);
       if (error) throw error;
+      
+      // Check if this is a candidate or recruiter
+      if (userType === "candidate") {
+        // Check if email exists in candidates table
+        const { data: candidate, error: candidateError } = await supabase
+          .from('candidates')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+        
+        if (candidateError) throw candidateError;
+        
+        if (!candidate) {
+          throw new Error("No candidate account found with this email");
+        }
+      }
+      
       toast({
         title: "Success!",
         description: "You have successfully signed in.",
       });
-      navigate("/dashboard");
+      
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate(userType === "recruiter" ? "/dashboard" : "/candidate-dashboard");
+      }
     } catch (error: any) {
       console.error("Error signing in:", error);
       toast({
@@ -67,8 +101,36 @@ const SignIn = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const { error } = await signUp(email, password);
+      // First check if the candidate already exists in the candidates table
+      if (userType === "candidate") {
+        const { data: existingCandidate } = await supabase
+          .from('candidates')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+          
+        if (existingCandidate) {
+          throw new Error("A candidate with this email already exists. Please sign in instead.");
+        }
+      }
+    
+      // Create the user account
+      const { error, data } = await signUp(email, password);
       if (error) throw error;
+      
+      if (userType === "candidate" && data?.user) {
+        // Create a candidate record
+        const { error: candidateError } = await supabase
+          .from('candidates')
+          .insert({
+            email,
+            first_name: firstName,
+            last_name: lastName
+          });
+          
+        if (candidateError) throw candidateError;
+      }
+      
       toast({
         title: "Account created!",
         description: "Please check your email to confirm your account.",
@@ -85,7 +147,7 @@ const SignIn = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !onSuccess) {
     return (
       <div className="flex min-h-[80vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -94,16 +156,25 @@ const SignIn = () => {
   }
 
   return (
-    <div className="container flex min-h-[80vh] flex-col items-center justify-center max-w-md mx-auto py-20">
-      <Card className="w-full">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to hire10xdevs</CardTitle>
-          <CardDescription>
-            Sign in to access your account and start assessing candidates.
-          </CardDescription>
-        </CardHeader>
+    <div className={`${!onSuccess ? "container flex min-h-[80vh] flex-col items-center justify-center max-w-md mx-auto py-20" : ""}`}>
+      <Card className={`${onSuccess ? "" : "w-full"}`}>
+        {!onSuccess && (
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Welcome to hire10xdevs</CardTitle>
+            <CardDescription>
+              {userType === "recruiter" 
+                ? "Sign in to access your account and start assessing candidates." 
+                : "Sign in to view and take your assigned tests."}
+            </CardDescription>
+          </CardHeader>
+        )}
         <CardContent className="flex flex-col gap-6">
           <Tabs defaultValue="signin" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            
             <TabsContent value="signin">
               <form onSubmit={handleEmailSignIn} className="space-y-4">
                 <div className="grid gap-2">
@@ -143,6 +214,34 @@ const SignIn = () => {
             
             <TabsContent value="signup">
               <form onSubmit={handleEmailSignUp} className="space-y-4">
+                {userType === "candidate" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="first-name">First Name</Label>
+                        <Input 
+                          id="first-name" 
+                          type="text" 
+                          placeholder="John"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="last-name">Last Name</Label>
+                        <Input 
+                          id="last-name" 
+                          type="text" 
+                          placeholder="Doe"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="grid gap-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input 

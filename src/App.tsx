@@ -17,6 +17,7 @@ import TestManagement from "./pages/dashboard/TestManagement";
 import Settings from "./pages/dashboard/Settings";
 import InterviewWorkspace from "./pages/InterviewWorkspace";
 import GetStarted from "./pages/GetStarted";
+import CandidateDashboard from "./pages/CandidateDashboard";
 
 // Protected route wrapper component - moved outside App component
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -45,7 +46,19 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/candidate-signin" element={<SignIn userType="candidate" />} />
             <Route path="/get-started" element={<GetStarted />} />
+            
+            {/* Candidate Routes */}
+            <Route
+              path="/candidate-dashboard"
+              element={
+                <ProtectedRoute>
+                  <CandidateDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/interview/:assignmentId" element={<InterviewWorkspace />} />
             
             {/* Protected Dashboard Routes */}
             <Route
@@ -97,10 +110,6 @@ const App = () => (
               }
             />
 
-            {/* Interview Workspace Routes */}
-            <Route path="/interview" element={<InterviewWorkspace />} />
-            <Route path="/interview/:assignmentId" element={<InterviewWorkspace />} />
-            
             {/* Catch-all Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
