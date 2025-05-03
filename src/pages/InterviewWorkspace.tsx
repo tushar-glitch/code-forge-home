@@ -57,7 +57,8 @@ const InterviewWorkspace = () => {
           return;
         }
 
-        setAssignment(assignmentData as TestAssignment);
+        // Type assertion to fix TypeScript error
+        setAssignment(assignmentData as unknown as TestAssignment);
 
         // If the assignment hasn't been started yet, mark it as in-progress
         if (assignmentData.status === "pending") {

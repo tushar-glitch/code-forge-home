@@ -14,6 +14,7 @@ export interface Test {
   company_id?: string | null;
   candidate_count?: number;
   status?: 'active' | 'closed' | 'draft';
+  user_id?: string; // Add user_id field
 }
 
 export interface CodeProject {
@@ -37,10 +38,21 @@ export interface TestAssignment {
   test_id: number;
   candidate_id: number;
   status: 'pending' | 'in-progress' | 'completed';
-  test?: Test;
+  test?: {
+    id: number;
+    test_title: string | null;
+    time_limit: number | null;
+    primary_language: string | null;
+    instructions: string | null;
+    created_at: string;
+    project_id: number | null;
+    company_id: number | null;
+    user_id: string | null;
+  };
   candidate?: Candidate;
   started_at: string | null;
   completed_at: string | null;
+  access_link?: string | null;
 }
 
 export const createTest = async (testData: {

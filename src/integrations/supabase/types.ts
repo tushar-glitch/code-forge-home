@@ -308,6 +308,7 @@ export type Database = {
           project_id: number | null
           test_title: string | null
           time_limit: number | null
+          user_id: string | null
         }
         Insert: {
           company_id?: number | null
@@ -318,6 +319,7 @@ export type Database = {
           project_id?: number | null
           test_title?: string | null
           time_limit?: number | null
+          user_id?: string | null
         }
         Update: {
           company_id?: number | null
@@ -328,6 +330,7 @@ export type Database = {
           project_id?: number | null
           test_title?: string | null
           time_limit?: number | null
+          user_id?: string | null
         }
         Relationships: [
           {
