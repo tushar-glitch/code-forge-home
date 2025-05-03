@@ -57,6 +57,7 @@ const CreateTest: React.FC = () => {
   };
 
   const handleNext = async () => {
+    console.log(user)
     if (step === 0 && !selectedProject) {
       toast({
         title: "Please select a project",
@@ -86,7 +87,8 @@ const CreateTest: React.FC = () => {
         project_id: selectedProject,
         time_limit: formData.timeLimit,
         primary_language: formData.language,
-        instructions: formData.instructions
+        instructions: formData.instructions,
+        user_id: user.id
       });
       
       setIsSubmitting(false);

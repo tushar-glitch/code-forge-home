@@ -1,17 +1,42 @@
-
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Loader2, Mail, UploadCloud, X, Link, Send } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Download,
+  Loader2,
+  Mail,
+  UploadCloud,
+  X,
+  Link,
+  Send,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { addCandidate, fetchTests, generateTestAssignment, sendTestInvitation, Test } from "@/lib/test-management-utils";
+import {
+  addCandidate,
+  fetchTests,
+  generateTestAssignment,
+  sendTestInvitation,
+  Test,
+} from "@/lib/test-management-utils";
 
 // Animation variants
 const containerVariants = {
@@ -19,9 +44,9 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1
-    }
-  }
+      staggerChildren: 0.1,
+    },
+  },
 };
 
 const itemVariants = {
@@ -30,9 +55,9 @@ const itemVariants = {
     y: 0,
     opacity: 1,
     transition: {
-      duration: 0.5
-    }
-  }
+      duration: 0.5,
+    },
+  },
 };
 
 interface CandidateWithLink {
@@ -75,23 +100,23 @@ const AddCandidates: React.FC = () => {
 
   const handleAddCandidate = () => {
     if (!email) return;
-    
+
     // Simple email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast({
         title: "Invalid email",
         description: "Please enter a valid email address",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    if (candidates.find(c => c.email === email)) {
+    if (candidates.find((c) => c.email === email)) {
       toast({
         title: "Duplicate email",
         description: "This email is already in the list",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -100,7 +125,7 @@ const AddCandidates: React.FC = () => {
       email,
       firstName: firstName || undefined,
       lastName: lastName || undefined,
-      status: "pending"
+      status: "pending",
     };
 
     setCandidates([...candidates, newCandidate]);
@@ -117,86 +142,98 @@ const AddCandidates: React.FC = () => {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    
+
     const file = e.target.files[0];
     setIsUploading(true);
-    
+
     // Read and parse CSV file
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const csvData = event.target?.result as string;
         const lines = csvData.split("\n");
-        const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
-        
+        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+
         const emailIndex = headers.indexOf("email");
-        const firstNameIndex = headers.indexOf("firstname") !== -1 
-          ? headers.indexOf("firstname") 
-          : headers.indexOf("first_name") !== -1 
-            ? headers.indexOf("first_name") 
+        const firstNameIndex =
+          headers.indexOf("firstname") !== -1
+            ? headers.indexOf("firstname")
+            : headers.indexOf("first_name") !== -1
+            ? headers.indexOf("first_name")
             : headers.indexOf("first name");
-            
-        const lastNameIndex = headers.indexOf("lastname") !== -1 
-          ? headers.indexOf("lastname") 
-          : headers.indexOf("last_name") !== -1 
-            ? headers.indexOf("last_name") 
+
+        const lastNameIndex =
+          headers.indexOf("lastname") !== -1
+            ? headers.indexOf("lastname")
+            : headers.indexOf("last_name") !== -1
+            ? headers.indexOf("last_name")
             : headers.indexOf("last name");
-        
+
         if (emailIndex === -1) {
           throw new Error("CSV file must contain an 'email' column");
         }
-        
+
         const newCandidates = [...candidates];
         let addedCount = 0;
-        
+
         // Start from line 1 (skip headers)
         for (let i = 1; i < lines.length; i++) {
           if (!lines[i].trim()) continue; // Skip empty lines
-          
-          const values = lines[i].split(",").map(v => v.trim());
+
+          const values = lines[i].split(",").map((v) => v.trim());
           const candidateEmail = values[emailIndex];
-          
+
           // Skip if email is invalid or already in the list
-          if (!candidateEmail || !candidateEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) || candidates.find(c => c.email === candidateEmail)) {
+          if (
+            !candidateEmail ||
+            !candidateEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) ||
+            candidates.find((c) => c.email === candidateEmail)
+          ) {
             continue;
           }
-          
+
           const candidate: CandidateWithLink = {
             email: candidateEmail,
-            status: "pending"
+            status: "pending",
           };
-          
+
           if (firstNameIndex !== -1 && values[firstNameIndex]) {
             candidate.firstName = values[firstNameIndex];
           }
-          
+
           if (lastNameIndex !== -1 && values[lastNameIndex]) {
             candidate.lastName = values[lastNameIndex];
           }
-          
+
           newCandidates.push(candidate);
           addedCount++;
         }
-        
+
         setCandidates(newCandidates);
-        
+
         toast({
           title: "CSV processed",
           description: `Added ${addedCount} candidates from CSV`,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
+        let errorMessage = "Could not parse the CSV file";
+
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
         toast({
           title: "Error processing CSV",
-          description: error.message || "Could not parse the CSV file",
-          variant: "destructive"
+          description: errorMessage,
+          variant: "destructive",
         });
       } finally {
         setIsUploading(false);
       }
     };
-    
+
     reader.readAsText(file);
-    
+
     // Reset file input
     e.target.value = "";
   };
@@ -206,36 +243,36 @@ const AddCandidates: React.FC = () => {
       toast({
         title: "No candidates",
         description: "Please add at least one candidate",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     if (!selectedTest) {
       toast({
         title: "No test selected",
         description: "Please select a test first",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     setIsGenerating(true);
-    
+
     // Generate links for each candidate
     const updatedCandidates = [...candidates];
-    const selectedTestData = tests.find(t => t.id === selectedTest);
-    
+    const selectedTestData = tests.find((t) => t.id === selectedTest);
+
     if (!selectedTestData) {
       toast({
         title: "Test not found",
         description: "The selected test could not be found",
-        variant: "destructive"
+        variant: "destructive",
       });
       setIsGenerating(false);
       return;
     }
-    
+
     for (let i = 0; i < updatedCandidates.length; i++) {
       if (!updatedCandidates[i].testLink) {
         try {
@@ -243,15 +280,20 @@ const AddCandidates: React.FC = () => {
           const candidateId = await addCandidate({
             email: updatedCandidates[i].email,
             first_name: updatedCandidates[i].firstName,
-            last_name: updatedCandidates[i].lastName
+            last_name: updatedCandidates[i].lastName,
           });
-          
+
           if (candidateId) {
             // Generate test assignment and get access link
-            const accessLink = await generateTestAssignment(selectedTest, candidateId);
-            
+            const accessLink = await generateTestAssignment(
+              selectedTest,
+              candidateId
+            );
+
             if (accessLink) {
-              updatedCandidates[i].testLink = `${window.location.origin}/test/${accessLink}`;
+              updatedCandidates[
+                i
+              ].testLink = `${window.location.origin}/test/${accessLink}`;
               updatedCandidates[i].status = "ready";
             }
           }
@@ -260,45 +302,47 @@ const AddCandidates: React.FC = () => {
         }
       }
     }
-    
+
     setCandidates(updatedCandidates);
     setIsGenerating(false);
-    
+
     toast({
       title: "Links generated",
-      description: `Generated links for ${updatedCandidates.filter(c => c.testLink).length} candidates`,
+      description: `Generated links for ${
+        updatedCandidates.filter((c) => c.testLink).length
+      } candidates`,
     });
   };
-  
+
   const handleSendInvitations = async () => {
-    if (candidates.length === 0 || !candidates.some(c => c.testLink)) {
+    if (candidates.length === 0 || !candidates.some((c) => c.testLink)) {
       toast({
         title: "No links to send",
         description: "Please generate test links first",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     setIsSending(true);
-    
-    const selectedTestData = tests.find(t => t.id === selectedTest);
+
+    const selectedTestData = tests.find((t) => t.id === selectedTest);
     if (!selectedTestData || !selectedTestData.test_title) {
       toast({
         title: "Test not found",
         description: "The selected test information is incomplete",
-        variant: "destructive"
+        variant: "destructive",
       });
       setIsSending(false);
       return;
     }
-    
+
     const updatedCandidates = [...candidates];
     let sentCount = 0;
-    
+
     for (let i = 0; i < updatedCandidates.length; i++) {
       const candidate = updatedCandidates[i];
-      
+
       if (candidate.testLink && candidate.status !== "sent") {
         try {
           const success = await sendTestInvitation(
@@ -307,7 +351,7 @@ const AddCandidates: React.FC = () => {
             candidate.testLink,
             candidate.firstName
           );
-          
+
           if (success) {
             updatedCandidates[i].status = "sent";
             sentCount++;
@@ -317,16 +361,16 @@ const AddCandidates: React.FC = () => {
         }
       }
     }
-    
+
     setCandidates(updatedCandidates);
     setIsSending(false);
-    
+
     toast({
       title: "Invitations sent",
       description: `Sent ${sentCount} test invitations`,
     });
   };
-  
+
   const getStatusBadgeClass = (status?: string) => {
     switch (status) {
       case "sent":
@@ -339,7 +383,7 @@ const AddCandidates: React.FC = () => {
   };
 
   return (
-    <DashboardLayout title="Add Candidates">
+    <DashboardLayout title="Invite Candidates">
       <motion.div
         variants={containerVariants}
         initial="hidden"
@@ -363,11 +407,13 @@ const AddCandidates: React.FC = () => {
                 </div>
               ) : tests.length === 0 ? (
                 <div className="text-center py-4">
-                  <p className="text-muted-foreground">No tests available. Please create a test first.</p>
-                  <Button 
-                    variant="outline" 
+                  <p className="text-muted-foreground">
+                    No tests available. Please create a test first.
+                  </p>
+                  <Button
+                    variant="outline"
                     className="mt-2"
-                    onClick={() => navigate('/dashboard/create-test')}
+                    onClick={() => navigate("/dashboard/create-test")}
                   >
                     Create Test
                   </Button>
@@ -430,7 +476,7 @@ const AddCandidates: React.FC = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                          if (e.key === "Enter") {
                             handleAddCandidate();
                           }
                         }}
@@ -502,13 +548,20 @@ const AddCandidates: React.FC = () => {
                           <Mail className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
                           <div className="truncate">
                             <span className="text-sm">
-                              {(candidate.firstName || candidate.lastName) ? 
-                                `${candidate.firstName || ''} ${candidate.lastName || ''} ` : ''}
+                              {candidate.firstName || candidate.lastName
+                                ? `${candidate.firstName || ""} ${
+                                    candidate.lastName || ""
+                                  } `
+                                : ""}
                               &lt;{candidate.email}&gt;
                             </span>
                             {candidate.testLink && (
                               <div className="text-xs text-muted-foreground truncate">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] mr-2 ${getStatusBadgeClass(candidate.status)}`}>
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] mr-2 ${getStatusBadgeClass(
+                                    candidate.status
+                                  )}`}
+                                >
                                   {candidate.status}
                                 </span>
                                 {candidate.testLink}
@@ -522,7 +575,9 @@ const AddCandidates: React.FC = () => {
                               variant="ghost"
                               size="icon"
                               onClick={() => {
-                                navigator.clipboard.writeText(candidate.testLink || '');
+                                navigator.clipboard.writeText(
+                                  candidate.testLink || ""
+                                );
                                 toast({ title: "Link copied to clipboard" });
                               }}
                             >
@@ -541,15 +596,22 @@ const AddCandidates: React.FC = () => {
                     ))}
                   </div>
                   <div className="flex flex-col sm:flex-row justify-between gap-2">
-                    <Button variant="outline" disabled={candidates.length === 0}>
+                    <Button
+                      variant="outline"
+                      disabled={candidates.length === 0}
+                    >
                       <Download className="h-4 w-4 mr-2" />
                       Export List
                     </Button>
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        onClick={handleGenerateLinks} 
-                        disabled={isGenerating || candidates.length === 0 || !selectedTest}
+                      <Button
+                        variant="outline"
+                        onClick={handleGenerateLinks}
+                        disabled={
+                          isGenerating ||
+                          candidates.length === 0 ||
+                          !selectedTest
+                        }
                       >
                         {isGenerating ? (
                           <>
@@ -563,9 +625,11 @@ const AddCandidates: React.FC = () => {
                           </>
                         )}
                       </Button>
-                      <Button 
-                        onClick={handleSendInvitations} 
-                        disabled={isSending || !candidates.some(c => c.testLink)}
+                      <Button
+                        onClick={handleSendInvitations}
+                        disabled={
+                          isSending || !candidates.some((c) => c.testLink)
+                        }
                       >
                         {isSending ? (
                           <>

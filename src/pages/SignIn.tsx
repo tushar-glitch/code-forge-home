@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -7,8 +6,14 @@ import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
 
 interface SignInProps {
   userType?: "recruiter" | "candidate";
@@ -16,7 +21,7 @@ interface SignInProps {
 }
 
 const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
-  const { user, signInWithEmail, signUp, signIn, isLoading, userRole } = useAuth();
+  const { user, signInWithEmail, signIn, isLoading, userRole } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState("");
@@ -34,7 +39,9 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
         navigate("/candidate-dashboard");
       } else if (userRole) {
         // If user is trying to access wrong area, redirect to their appropriate dashboard
-        navigate(userRole === "candidate" ? "/candidate-dashboard" : "/dashboard");
+        navigate(
+          userRole === "candidate" ? "/candidate-dashboard" : "/dashboard"
+        );
       }
     }
   }, [user, isLoading, navigate, onSuccess, userType, userRole]);
@@ -61,51 +68,26 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
     try {
       const { error } = await signInWithEmail(email, password);
       if (error) throw error;
-      
+
       toast({
         title: "Success!",
         description: "You have successfully signed in.",
       });
-      
+
       if (onSuccess) {
         onSuccess();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error signing in:", error);
+      let errorMessage = "Something went wrong";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       toast({
         title: "Authentication error",
-        description: error.message || "Could not sign in with email. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleEmailSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      // Create the user account with the specified role
-      const { error, data } = await signUp(
-        email, 
-        password,
-        userType, // Pass the role explicitly
-        firstName,
-        lastName
-      );
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Account created!",
-        description: "Please check your email to confirm your account.",
-      });
-    } catch (error: any) {
-      console.error("Error signing up:", error);
-      toast({
-        title: "Registration error",
-        description: error.message || "Could not create account. Please try again.",
+        description:
+          errorMessage || "Could not sign in with email. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -122,132 +104,71 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
   }
 
   return (
-    <div className={`${!onSuccess ? "container flex min-h-[80vh] flex-col items-center justify-center max-w-md mx-auto py-20" : ""}`}>
+    <div
+      className={`${
+        !onSuccess
+          ? "container flex min-h-[80vh] flex-col items-center justify-center max-w-md mx-auto py-20"
+          : ""
+      }`}
+    >
       <Card className={`${onSuccess ? "" : "w-full"}`}>
         {!onSuccess && (
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Welcome to hire10xdevs</CardTitle>
             <CardDescription>
-              {userType === "recruiter" 
-                ? "Sign in to access your account and start assessing candidates." 
+              {userType === "recruiter"
+                ? "Sign in to access your account and start assessing candidates."
                 : "Sign in to view and take your assigned tests."}
             </CardDescription>
           </CardHeader>
         )}
         <CardContent className="flex flex-col gap-6">
-          <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="signin">
-              <form onSubmit={handleEmailSignIn} className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input 
-                    id="password" 
-                    type="password"
-                    placeholder="******"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button className="w-full" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing In...
-                    </>
-                  ) : (
-                    "Sign In with Email"
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleEmailSignUp} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="first-name">First Name</Label>
-                    <Input 
-                      id="first-name" 
-                      type="text" 
-                      placeholder="John"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="last-name">Last Name</Label>
-                    <Input 
-                      id="last-name" 
-                      type="text" 
-                      placeholder="Doe"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input 
-                    id="signup-email" 
-                    type="email" 
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input 
-                    id="signup-password" 
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button className="w-full" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Account...
-                    </>
-                  ) : (
-                    `Create ${userType === "candidate" ? "Candidate" : "Recruiter"} Account`
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-          
+          <form onSubmit={handleEmailSignIn} className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="******"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button className="w-full" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing In...
+                </>
+              ) : (
+                "Sign In with Email"
+              )}
+            </Button>
+          </form>
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-card px-2 text-muted-foreground">
+                Or continue with
+              </span>
             </div>
           </div>
-          
+
           <Button
             variant="outline"
             className="w-full flex items-center justify-center gap-2"
@@ -281,6 +202,7 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
             )}
           </Button>
         </CardContent>
+
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
             By signing in, you agree to our Terms of Service and Privacy Policy.

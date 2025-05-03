@@ -1,226 +1,439 @@
 
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import Editor from "@monaco-editor/react";
+import { FileExplorer } from "@/components/workspace/FileExplorer";
+import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
+import { FileTabs } from "@/components/workspace/FileTabs";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import { ChevronRight, ChevronLeft, Terminal, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { dummyFileSystem } from "@/lib/dummy-data";
+import { FileType } from "@/types/file";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { toast } from "@/hooks/use-toast";
-import { updateAssignmentStatus, getAssignmentDetails, TestAssignment } from "@/lib/test-management-utils";
-import { Loader2 } from "lucide-react";
+import { getAssignmentDetails, updateAssignmentStatus } from "@/lib/test-management-utils";
 
-const InterviewWorkspace = () => {
-  const { assignmentId } = useParams();
-  const { user, userRole } = useAuth();
+const InterviewWorkspace: React.FC = () => {
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const [assignment, setAssignment] = useState<TestAssignment | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
+  const { assignmentId } = useParams(); // For getting the assignment ID from the URL
+  
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(false);
+  const [openFiles, setOpenFiles] = useState<FileType[]>([]);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [fileContents, setFileContents] = useState<Record<string, string>>({});
+  const [autosaveStatus, setAutosaveStatus] = useState<"saved" | "saving" | "error">("saved");
+  const [isLoading, setIsLoading] = useState(true);
+  const [projectData, setProjectData] = useState<any>(null);
+  const [assignmentData, setAssignmentData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initialize file system with dummy data for now
+  const [fileSystem, setFileSystem] = useState(dummyFileSystem);
 
   useEffect(() => {
-    const fetchAssignmentDetails = async () => {
-      if (!assignmentId || !user) return;
-      
+    // Check if user is authenticated
+    if (!user) {
+      navigate("/signin");
+      return;
+    }
+
+    const loadAssignment = async () => {
+      setIsLoading(true);
       try {
-        // Make sure the assignment ID is a number
-        const id = parseInt(assignmentId);
-        if (isNaN(id)) {
-          toast({
-            title: "Invalid assignment",
-            description: "The assignment ID is not valid",
-            variant: "destructive",
-          });
-          navigate("/candidate-dashboard");
-          return;
-        }
+        // If we have an assignmentId, fetch the assignment
+        if (assignmentId) {
+          const assignmentDetails = await getAssignmentDetails(parseInt(assignmentId));
+          
+          if (!assignmentDetails) {
+            throw new Error("Assignment not found");
+          }
+          
+          setAssignmentData(assignmentDetails);
 
-        // First, get assignment details
-        const assignmentData = await getAssignmentDetails(id);
-        
-        if (!assignmentData) {
-          toast({
-            title: "Assignment not found",
-            description: "This assignment does not exist or you don't have access to it",
-            variant: "destructive",
-          });
-          navigate("/candidate-dashboard");
-          return;
-        }
-        
-        // For candidates, verify email matches
-        if (userRole === "candidate" && assignmentData.candidate?.email !== user.email) {
-          toast({
-            title: "Access denied",
-            description: "You don't have access to this assignment",
-            variant: "destructive",
-          });
-          navigate("/candidate-dashboard");
-          return;
-        }
+          // Mark the assignment as started if not already
+          if (assignmentDetails.status === 'pending') {
+            await updateAssignmentStatus(parseInt(assignmentId), 'in-progress', true, false);
+          }
 
-        setAssignment(assignmentData as TestAssignment);
+          // Get the project data for this test
+          if (assignmentDetails.test?.project_id) {
+            const { data: project, error: projectError } = await supabase
+              .from('code_projects')
+              .select('*')
+              .eq('id', assignmentDetails.test.project_id)
+              .single();
 
-        // If the assignment hasn't been started yet, mark it as in-progress
-        if (assignmentData.status === "pending") {
-          await updateAssignmentStatus(id, "in-progress", true, false);
-          // Update local state
-          setAssignment(prev => prev ? {...prev, status: "in-progress" as "in-progress", started_at: new Date().toISOString()} : null);
+            if (projectError) throw projectError;
+            setProjectData(project);
+
+            // Update file system from project data if available
+            if (project.files_json) {
+              try {
+                const projectFiles = JSON.parse(project.files_json);
+                if (Array.isArray(projectFiles) && projectFiles.length > 0) {
+                  setFileSystem(projectFiles);
+                }
+              } catch (e) {
+                console.error("Error parsing project files:", e);
+              }
+            }
+          }
+
+          // Check for existing submissions
+          const { data: submissions, error: submissionsError } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assignment_id', parseInt(assignmentId))
+            .order('created_at', { ascending: false });
+
+          if (submissionsError) throw submissionsError;
+
+          // If there are submissions, load the most recent one
+          if (submissions && submissions.length > 0) {
+            const latestSubmission = submissions[0];
+            
+            // Try to parse content as a file system or use as a single file content
+            try {
+              if (latestSubmission.content) {
+                const parsedContent = JSON.parse(latestSubmission.content);
+                if (typeof parsedContent === 'object') {
+                  setFileContents(parsedContent);
+                }
+              }
+            } catch (e) {
+              // If it's not JSON, assume it's a single file content
+              if (latestSubmission.file_path && latestSubmission.content) {
+                setFileContents({
+                  [latestSubmission.file_path]: latestSubmission.content
+                });
+              }
+            }
+          }
         }
       } catch (error) {
-        console.error("Error fetching assignment:", error);
+        console.error("Error loading assignment:", error);
         toast({
           title: "Error",
-          description: "Failed to load assignment details",
+          description: "Failed to load the assignment data",
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
-    fetchAssignmentDetails();
-  }, [assignmentId, user, navigate, userRole]);
+    // Initialize with the first file from the file system
+    const initializeFirstFile = () => {
+      const initialFile = fileSystem.find(f => !f.isFolder);
+      if (initialFile) {
+        handleFileOpen(initialFile);
+      }
+    };
 
-  const handleSubmitTest = async () => {
-    if (!assignmentId || !assignment) return;
+    loadAssignment().then(() => {
+      initializeFirstFile();
+    });
+  }, [user, assignmentId, navigate, toast]);
+
+  const handleFileOpen = (file: FileType) => {
+    if (file.isFolder) return;
     
-    setSubmitting(true);
-    try {
-      const id = parseInt(assignmentId);
-      
-      // Save a submission record
-      await supabase
-        .from('submissions')
-        .insert({
-          assignment_id: id,
-          content: "Test submitted", // Placeholder for actual test content
-          file_path: "", // Placeholder for file path if needed
-          saved_at: new Date().toISOString()
-        });
-      
-      // Update the assignment status to completed
-      await updateAssignmentStatus(id, "completed", false, true);
-      
-      toast({
-        title: "Success",
-        description: "Your test has been successfully submitted!",
-      });
-      
-      navigate("/candidate-dashboard");
-    } catch (error) {
-      console.error("Error submitting test:", error);
-      toast({
-        title: "Error",
-        description: "Failed to submit your test. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
+    // Check if file is already open
+    if (!openFiles.find(f => f.id === file.id)) {
+      setOpenFiles(prev => [...prev, file]);
+    }
+    
+    // Set as active file
+    setActiveFileId(file.id);
+    
+    // Initialize content if not already present
+    if (!fileContents[file.id]) {
+      setFileContents(prev => ({
+        ...prev,
+        [file.id]: file.defaultContent || `// ${file.name}\n\n// Start coding here\n`
+      }));
+    }
+    
+    // Show autosave animation
+    setAutosaveStatus("saving");
+    setTimeout(() => setAutosaveStatus("saved"), 800);
+  };
+
+  const handleFileClose = (fileId: string) => {
+    setOpenFiles(prev => prev.filter(f => f.id !== fileId));
+    
+    // If we're closing the active file, activate another file if available
+    if (activeFileId === fileId) {
+      const remainingFiles = openFiles.filter(f => f.id !== fileId);
+      if (remainingFiles.length > 0) {
+        setActiveFileId(remainingFiles[remainingFiles.length - 1].id);
+      } else {
+        setActiveFileId(null);
+      }
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const handleEditorChange = async (value: string | undefined, fileId: string) => {
+    if (value === undefined) return;
+    
+    setFileContents(prev => ({
+      ...prev,
+      [fileId]: value
+    }));
+    
+    // Show autosave animation
+    setAutosaveStatus("saving");
+    
+    // Save the content to Supabase if we have an assignment ID
+    if (assignmentId) {
+      try {
+        const { error } = await supabase
+          .from('submissions')
+          .insert({
+            assignment_id: parseInt(assignmentId),
+            content: JSON.stringify({...fileContents, [fileId]: value}),
+            saved_at: new Date().toISOString()
+          });
+          
+        if (error) throw error;
+        setAutosaveStatus("saved");
+      } catch (error) {
+        console.error("Error saving submission:", error);
+        setAutosaveStatus("error");
+      }
+    } else {
+      // Just simulate saving for the demo
+      setTimeout(() => setAutosaveStatus("saved"), 800);
+    }
+  };
 
-  if (!assignment) {
+  const handleSubmit = async () => {
+    if (!assignmentId) {
+      toast({
+        title: "Info",
+        description: "This is just a demo. In a real test, your work would be submitted for review.",
+      });
+      // In a demo, just navigate back to the dashboard
+      setTimeout(() => navigate("/candidate-dashboard"), 2000);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Mark the assignment as completed
+      const updated = await updateAssignmentStatus(
+        parseInt(assignmentId), 
+        'completed', 
+        false, 
+        true
+      );
+
+      if (!updated) {
+        throw new Error("Failed to update assignment status");
+      }
+
+      // Create a final submission
+      const { error: submissionError } = await supabase
+        .from('submissions')
+        .insert({
+          assignment_id: parseInt(assignmentId),
+          content: JSON.stringify(fileContents),
+          saved_at: new Date().toISOString()
+        });
+
+      if (submissionError) throw submissionError;
+
+      toast({
+        title: "Submission Successful",
+        description: "Your work has been submitted for review.",
+      });
+
+      // Redirect to the candidate dashboard
+      setTimeout(() => navigate("/candidate-dashboard"), 2000);
+    } catch (error) {
+      console.error("Error submitting assignment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit your work. Please try again.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 text-center">
-        <h1 className="mb-4 text-2xl font-bold">Assignment Not Found</h1>
-        <p className="mb-6 text-muted-foreground">
-          The assignment you're looking for doesn't exist or you don't have permission to access it.
-        </p>
-        <Button onClick={() => navigate("/candidate-dashboard")}>
-          Back to Dashboard
-        </Button>
+      <div className="h-screen w-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading workspace...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold">
-            {assignment.test?.test_title || "Interview Workspace"}
-          </h1>
-          <div className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-            {assignment.status}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={handleSubmitTest} disabled={submitting || assignment.status === "completed"}>
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : assignment.status === "completed" ? (
-              "Already Submitted"
-            ) : (
-              "Submit Test"
-            )}
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 flex-col md:grid md:grid-cols-[1fr_3fr] lg:grid-cols-[1fr_4fr]">
-        {/* Instructions panel */}
-        <div className="border-r p-4 overflow-y-auto">
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold">Instructions</h2>
-            <div className="prose prose-sm max-w-none">
-              <p>{assignment.test?.instructions || "No instructions provided."}</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Time Limit:</span>
-                <span className="font-medium">{assignment.test?.time_limit || 60} minutes</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Language:</span>
-                <span className="font-medium">{assignment.test?.primary_language || "Not specified"}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Content area - placeholder for actual editor/workspace */}
-        <div className="flex flex-1 flex-col p-4">
-          <div className="border border-dashed rounded-lg bg-muted/40 flex flex-1 items-center justify-center p-8">
-            <div className="text-center">
-              <h3 className="text-lg font-medium mb-2">Editor Workspace</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                This is where the code editor and file explorer would be displayed.
-                <br />
-                Not implemented in this demo.
-              </p>
-              <Button 
-                onClick={handleSubmitTest}
-                disabled={submitting || assignment.status === "completed"}
-                variant="default"
-                size="lg"
+    <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
+      {/* Header */}
+      <WorkspaceHeader 
+        onSubmit={handleSubmit}
+        autosaveStatus={autosaveStatus}
+        testTitle={assignmentData?.test?.test_title || "Coding Test"}
+        isSubmitting={isSubmitting}
+      />
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          {/* Sidebar */}
+          <AnimatePresence>
+            {!isSidebarCollapsed && (
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: "auto" }}
+                exit={{ width: 0 }}
+                className="h-full"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : assignment.status === "completed" ? (
-                  "Already Submitted"
-                ) : (
-                  "Submit Test"
-                )}
-              </Button>
-            </div>
+                <ResizablePanel 
+                  defaultSize={20} 
+                  minSize={15} 
+                  maxSize={30}
+                  className="bg-card border-r border-border"
+                >
+                  <FileExplorer
+                    files={fileSystem}
+                    activeFileId={activeFileId}
+                    onFileClick={handleFileOpen}
+                    className="h-full"
+                  />
+                </ResizablePanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* Toggle sidebar button */}
+          <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-8 w-6 rounded-l-none border-l-0"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            >
+              {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            </Button>
           </div>
+          
+          {/* Editor area */}
+          <ResizablePanel defaultSize={80} className="flex flex-col h-full overflow-hidden">
+            {/* Tabs */}
+            <FileTabs
+              files={openFiles}
+              activeFileId={activeFileId}
+              onTabClick={setActiveFileId}
+              onTabClose={handleFileClose}
+            />
+            
+            {/* Editor */}
+            <div className="flex-1 relative">
+              {activeFileId ? (
+                <Editor
+                  height="100%"
+                  defaultLanguage={getLanguageFromFileName(openFiles.find(f => f.id === activeFileId)?.name || "")}
+                  theme="vs-dark"
+                  value={fileContents[activeFileId] || ""}
+                  onChange={(value) => handleEditorChange(value, activeFileId)}
+                  options={{
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    wordWrap: "on",
+                    automaticLayout: true,
+                    tabSize: 2,
+                    scrollBeyondLastLine: false,
+                  }}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  Select a file to start coding
+                </div>
+              )}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+        
+        {/* Bottom panel */}
+        <AnimatePresence>
+          {isBottomPanelOpen && (
+            <motion.div
+              initial={{ height: 0 }}
+              animate={{ height: 200 }}
+              exit={{ height: 0 }}
+              className="border-t border-border bg-card"
+            >
+              <div className="p-4 h-full">
+                <div className="text-sm font-medium mb-2">Terminal</div>
+                <div className="bg-card h-[calc(100%-2rem)] p-2 rounded-md overflow-auto">
+                  <div className="text-muted-foreground text-xs font-mono">
+                    $ npm start<br />
+                    Starting development server...<br />
+                    Compiled successfully!<br />
+                    You can now view the app in the browser.<br />
+                    <br />
+                    {'> Ready on http://localhost:3000'}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Toggle bottom panel button */}
+        <div className="absolute bottom-4 right-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            className={cn("gap-2", isBottomPanelOpen && "bg-primary text-primary-foreground")}
+            onClick={() => setIsBottomPanelOpen(!isBottomPanelOpen)}
+          >
+            <Terminal size={14} />
+            Terminal
+          </Button>
         </div>
       </div>
     </div>
   );
 };
+
+// Helper function to determine language from file name
+function getLanguageFromFileName(fileName: string): string {
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  
+  switch (extension) {
+    case 'js':
+      return 'javascript';
+    case 'jsx':
+      return 'javascript';
+    case 'ts':
+      return 'typescript';
+    case 'tsx':
+      return 'typescript';
+    case 'json':
+      return 'json';
+    case 'md':
+      return 'markdown';
+    case 'html':
+      return 'html';
+    case 'css':
+      return 'css';
+    default:
+      return 'javascript';
+  }
+}
 
 export default InterviewWorkspace;

@@ -71,10 +71,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       active: title === "Create Test" 
     },
     { 
-      title: "Add Candidates", 
+      title: "Invite Candidates", 
       icon: Users, 
-      path: "/dashboard/add-candidates",
-      active: title === "Add Candidates" 
+      path: "/dashboard/invite-candidates",
+      active: title === "Invite Candidates" 
     },
     { 
       title: "Submissions", 

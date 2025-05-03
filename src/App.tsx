@@ -94,7 +94,7 @@ const App = () => (
               }
             />
             <Route
-              path="/dashboard/add-candidates"
+              path="/dashboard/invite-candidates"
               element={
                 <ProtectedRoute allowedRoles={["recruiter"]}>
                   <AddCandidates />

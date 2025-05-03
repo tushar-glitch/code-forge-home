@@ -300,7 +300,6 @@ export type Database = {
       }
       tests: {
         Row: {
-          company_id: number | null
           created_at: string
           id: number
           instructions: string | null
@@ -310,7 +309,6 @@ export type Database = {
           time_limit: number | null
         }
         Insert: {
-          company_id?: number | null
           created_at?: string
           id?: number
           instructions?: string | null
@@ -320,7 +318,6 @@ export type Database = {
           time_limit?: number | null
         }
         Update: {
-          company_id?: number | null
           created_at?: string
           id?: number
           instructions?: string | null
@@ -330,13 +327,6 @@ export type Database = {
           time_limit?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "tests_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tests_project_id_fkey"
             columns: ["project_id"]

@@ -90,7 +90,7 @@ const GetStarted = () => {
         if (companyError) throw companyError;
         companyId = newCompany.id.toString();
       }
-      
+
       // Insert lead data into Supabase
       const { data: leadData, error } = await supabase
         .from("leads")
@@ -98,6 +98,7 @@ const GetStarted = () => {
           email: data.email,
           role: data.role,
           hiring_count: data.hiringCount,
+          company_id: data.companyId
         })
         .select('id')
         .single();

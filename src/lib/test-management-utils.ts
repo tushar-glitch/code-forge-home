@@ -11,7 +11,6 @@ export interface Test {
   test_type?: string;
   question_list?: any;
   project_id: string | null;
-  company_id?: string | null;
   candidate_count?: number;
   status?: 'active' | 'closed' | 'draft';
 }
@@ -49,7 +48,7 @@ export const createTest = async (testData: {
   time_limit: number;
   primary_language: string;
   instructions: string;
-  company_id?: string | null;
+  user_id: string;
 }): Promise<string | null> => {
   try {
     // Add user_id to track test ownership
@@ -72,7 +71,6 @@ export const createTest = async (testData: {
         time_limit: testData.time_limit,
         primary_language: testData.primary_language,
         instructions: testData.instructions,
-        company_id: testData.company_id ? parseInt(testData.company_id) : null,
         user_id: user.id // Add user ID to track test ownership
       })
       .select('id')
@@ -161,7 +159,6 @@ export const fetchTests = async (): Promise<Test[]> => {
         ...test,
         id: test.id.toString(),
         project_id: test.project_id?.toString() || null,
-        company_id: test.company_id?.toString() || null,
         candidate_count: count || 0,
         status: 'active' // Default status, you can customize this based on your needs
       };
@@ -246,7 +243,7 @@ export const getCandidateAssignments = async (candidateEmail: string) => {
       return [];
     }
 
-    // Then get all assignments for this candidate
+    // Then get all assignments for this candidate with full test data
     const { data: assignments, error: assignmentsError } = await supabase
       .from('test_assignments')
       .select(`
@@ -260,7 +257,10 @@ export const getCandidateAssignments = async (candidateEmail: string) => {
       console.error('Error fetching candidate assignments:', assignmentsError);
       return [];
     }
-
+    
+    // Log the assignments for debugging
+    console.log('Assignments with test data:', assignments);
+    
     return assignments || [];
   } catch (error) {
     console.error('Error in getCandidateAssignments:', error);
@@ -409,7 +409,6 @@ export const duplicateTest = async (testId: string): Promise<Test | null> => {
       .insert({
         test_title: `${testToDuplicate.test_title} (Copy)`,
         project_id: testToDuplicate.project_id,
-        company_id: testToDuplicate.company_id,
         instructions: testToDuplicate.instructions,
         primary_language: testToDuplicate.primary_language,
         time_limit: testToDuplicate.time_limit,
@@ -436,7 +435,6 @@ export const duplicateTest = async (testId: string): Promise<Test | null> => {
       ...newTest,
       id: newTest.id.toString(),
       project_id: newTest.project_id?.toString() || null,
-      company_id: newTest.company_id?.toString() || null,
       candidate_count: 0,
       status: 'draft'
     };
