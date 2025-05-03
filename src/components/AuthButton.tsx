@@ -12,32 +12,19 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 const AuthButton = () => {
-  const { user, signOut, isLoading } = useAuth();
+  const { user, signOut, isLoading, userRole, checkUserRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isCandidate, setIsCandidate] = useState(false);
 
   useEffect(() => {
-    const checkIfCandidate = async () => {
-      if (user?.email) {
-        const { data } = await supabase
-          .from('candidates')
-          .select('*')
-          .eq('email', user.email)
-          .maybeSingle();
-        
-        setIsCandidate(!!data);
-      }
-    };
-
-    if (user) {
-      checkIfCandidate();
+    // If user is logged in but role is not set, check role
+    if (user && !userRole) {
+      checkUserRole();
     }
-  }, [user]);
+  }, [user, userRole]);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -98,14 +85,19 @@ const AuthButton = () => {
           <div className="flex flex-col space-y-1 leading-none">
             <p className="font-medium">{userName}</p>
             <p className="text-sm text-muted-foreground">{user.email}</p>
+            {userRole && (
+              <p className="text-xs text-muted-foreground capitalize">
+                Role: {userRole}
+              </p>
+            )}
           </div>
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer"
-          onClick={() => navigate(isCandidate ? "/candidate-dashboard" : "/dashboard")}
+          onClick={() => navigate(userRole === "candidate" ? "/candidate-dashboard" : "/dashboard")}
         >
-          {isCandidate ? "My Assignments" : "Dashboard"}
+          {userRole === "candidate" ? "My Assignments" : "Dashboard"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

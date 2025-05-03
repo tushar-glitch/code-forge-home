@@ -2,15 +2,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 export interface Test {
-  id: number;
+  id: string;
   created_at: string;
   test_title: string;
   instructions: string;
   time_limit: number;
   primary_language: string;
-  test_type: string;
-  question_list: any;
-  project_id: number;
+  test_type?: string;
+  question_list?: any;
+  project_id: string | null;
+  company_id?: string | null;
+  candidate_count?: number;
+  status?: 'active' | 'closed' | 'draft';
 }
 
 export interface CodeProject {
@@ -49,6 +52,18 @@ export const createTest = async (testData: {
   company_id?: string | null;
 }): Promise<string | null> => {
   try {
+    // Add user_id to track test ownership
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to create a test",
+        variant: "destructive"
+      });
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('tests')
       .insert({
@@ -57,7 +72,8 @@ export const createTest = async (testData: {
         time_limit: testData.time_limit,
         primary_language: testData.primary_language,
         instructions: testData.instructions,
-        company_id: testData.company_id ? parseInt(testData.company_id) : null
+        company_id: testData.company_id ? parseInt(testData.company_id) : null,
+        user_id: user.id // Add user ID to track test ownership
       })
       .select('id')
       .single();
@@ -89,6 +105,10 @@ export const createTest = async (testData: {
 
 export const fetchProjects = async (): Promise<CodeProject[]> => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return [];
+
     const { data, error } = await supabase
       .from('code_projects')
       .select('*');
@@ -111,9 +131,15 @@ export const fetchProjects = async (): Promise<CodeProject[]> => {
 
 export const fetchTests = async (): Promise<Test[]> => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return [];
+
+    // Only fetch tests created by the current user
     const { data: testsData, error: testsError } = await supabase
       .from('tests')
-      .select('*');
+      .select('*')
+      .eq('user_id', user.id);
 
     if (testsError) {
       toast({
@@ -172,6 +198,12 @@ export const createTestAssignment = async (testId: number, candidateId: number) 
 // Function to update the status of a test assignment
 export const updateAssignmentStatus = async (assignmentId: number, status: 'pending' | 'in-progress' | 'completed', started: boolean = false, completed: boolean = false) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('User not authenticated');
+      return false;
+    }
+
     let updates: { status: string, started_at?: string, completed_at?: string } = { status: status };
 
     if (started) {
@@ -239,6 +271,12 @@ export const getCandidateAssignments = async (candidateEmail: string) => {
 // Function to get specific assignment details by ID
 export const getAssignmentDetails = async (assignmentId: number) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('User not authenticated');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('test_assignments')
       .select(`
@@ -263,6 +301,43 @@ export const getAssignmentDetails = async (assignmentId: number) => {
 
 export const deleteTest = async (testId: string): Promise<boolean> => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to delete a test",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    // First verify that the test belongs to the current user
+    const { data: test, error: fetchError } = await supabase
+      .from('tests')
+      .select('user_id')
+      .eq('id', parseInt(testId))
+      .single();
+      
+    if (fetchError || !test) {
+      toast({
+        title: "Error deleting test",
+        description: "Test not found",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    // Check ownership
+    if (test.user_id !== user.id) {
+      toast({
+        title: "Access denied",
+        description: "You can only delete tests that you created",
+        variant: "destructive"
+      });
+      return false;
+    }
+
     const { error } = await supabase
       .from('tests')
       .delete()
@@ -291,6 +366,17 @@ export const deleteTest = async (testId: string): Promise<boolean> => {
 // Duplicate a test
 export const duplicateTest = async (testId: string): Promise<Test | null> => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to duplicate a test",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
     // Get the test to duplicate
     const { data: testToDuplicate, error: fetchError } = await supabase
       .from('tests')
@@ -306,6 +392,16 @@ export const duplicateTest = async (testId: string): Promise<Test | null> => {
       });
       return null;
     }
+    
+    // Verify ownership
+    if (testToDuplicate.user_id !== user.id) {
+      toast({
+        title: "Access denied",
+        description: "You can only duplicate tests that you created",
+        variant: "destructive"
+      });
+      return null;
+    }
 
     // Create a new test with the same data
     const { data: newTest, error: insertError } = await supabase
@@ -316,7 +412,8 @@ export const duplicateTest = async (testId: string): Promise<Test | null> => {
         company_id: testToDuplicate.company_id,
         instructions: testToDuplicate.instructions,
         primary_language: testToDuplicate.primary_language,
-        time_limit: testToDuplicate.time_limit
+        time_limit: testToDuplicate.time_limit,
+        user_id: user.id // Ensure user ID is set for the duplicate
       })
       .select()
       .single();
@@ -407,6 +504,43 @@ export const addCandidate = async (candidate: {
 // Generate test assignment
 export const generateTestAssignment = async (testId: string, candidateId: number): Promise<string | null> => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to create assignments",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    // Verify test ownership before creating assignment
+    const { data: test, error: testError } = await supabase
+      .from('tests')
+      .select('user_id')
+      .eq('id', parseInt(testId))
+      .single();
+      
+    if (testError || !test) {
+      toast({
+        title: "Error checking test",
+        description: "Test not found",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    // Check ownership
+    if (test.user_id !== user.id) {
+      toast({
+        title: "Access denied",
+        description: "You can only create assignments for tests that you own",
+        variant: "destructive"
+      });
+      return null;
+    }
+
     // Check if assignment already exists
     const { data: existingAssignment, error: checkError } = await supabase
       .from('test_assignments')

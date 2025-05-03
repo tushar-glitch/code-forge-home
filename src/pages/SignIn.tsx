@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
 
 interface SignInProps {
   userType?: "recruiter" | "candidate";
@@ -17,7 +16,7 @@ interface SignInProps {
 }
 
 const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
-  const { user, signInWithEmail, signUp, signIn, isLoading } = useAuth();
+  const { user, signInWithEmail, signUp, signIn, isLoading, userRole } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState("");
@@ -28,13 +27,17 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
   useEffect(() => {
     // Redirect if user is already authenticated (for standard page loads, not modal)
     if (user && !isLoading && !onSuccess) {
-      if (userType === "recruiter") {
+      // Check if user role matches intended route
+      if (userType === "recruiter" && userRole === "recruiter") {
         navigate("/dashboard");
-      } else {
+      } else if (userType === "candidate" && userRole === "candidate") {
         navigate("/candidate-dashboard");
+      } else if (userRole) {
+        // If user is trying to access wrong area, redirect to their appropriate dashboard
+        navigate(userRole === "candidate" ? "/candidate-dashboard" : "/dashboard");
       }
     }
-  }, [user, isLoading, navigate, onSuccess, userType]);
+  }, [user, isLoading, navigate, onSuccess, userType, userRole]);
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
@@ -59,22 +62,6 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
       const { error } = await signInWithEmail(email, password);
       if (error) throw error;
       
-      // Check if this is a candidate or recruiter
-      if (userType === "candidate") {
-        // Check if email exists in candidates table
-        const { data: candidate, error: candidateError } = await supabase
-          .from('candidates')
-          .select('*')
-          .eq('email', email)
-          .maybeSingle();
-        
-        if (candidateError) throw candidateError;
-        
-        if (!candidate) {
-          throw new Error("No candidate account found with this email");
-        }
-      }
-      
       toast({
         title: "Success!",
         description: "You have successfully signed in.",
@@ -82,8 +69,6 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
       
       if (onSuccess) {
         onSuccess();
-      } else {
-        navigate(userType === "recruiter" ? "/dashboard" : "/candidate-dashboard");
       }
     } catch (error: any) {
       console.error("Error signing in:", error);
@@ -101,35 +86,16 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // First check if the candidate already exists in the candidates table
-      if (userType === "candidate") {
-        const { data: existingCandidate } = await supabase
-          .from('candidates')
-          .select('*')
-          .eq('email', email)
-          .maybeSingle();
-          
-        if (existingCandidate) {
-          throw new Error("A candidate with this email already exists. Please sign in instead.");
-        }
-      }
-    
-      // Create the user account
-      const { error, data } = await signUp(email, password);
-      if (error) throw error;
+      // Create the user account with the specified role
+      const { error, data } = await signUp(
+        email, 
+        password,
+        userType, // Pass the role explicitly
+        firstName,
+        lastName
+      );
       
-      if (userType === "candidate" && data?.user) {
-        // Create a candidate record
-        const { error: candidateError } = await supabase
-          .from('candidates')
-          .insert({
-            email,
-            first_name: firstName,
-            last_name: lastName
-          });
-          
-        if (candidateError) throw candidateError;
-      }
+      if (error) throw error;
       
       toast({
         title: "Account created!",
@@ -214,34 +180,30 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
             
             <TabsContent value="signup">
               <form onSubmit={handleEmailSignUp} className="space-y-4">
-                {userType === "candidate" && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="first-name">First Name</Label>
-                        <Input 
-                          id="first-name" 
-                          type="text" 
-                          placeholder="John"
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="last-name">Last Name</Label>
-                        <Input 
-                          id="last-name" 
-                          type="text" 
-                          placeholder="Doe"
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="first-name">First Name</Label>
+                    <Input 
+                      id="first-name" 
+                      type="text" 
+                      placeholder="John"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="last-name">Last Name</Label>
+                    <Input 
+                      id="last-name" 
+                      type="text" 
+                      placeholder="Doe"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input 
@@ -270,7 +232,7 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
                       Creating Account...
                     </>
                   ) : (
-                    "Create Account"
+                    `Create ${userType === "candidate" ? "Candidate" : "Recruiter"} Account`
                   )}
                 </Button>
               </form>
