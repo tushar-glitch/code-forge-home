@@ -307,6 +307,7 @@ export type Database = {
           project_id: number | null
           test_title: string | null
           time_limit: number | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -316,6 +317,7 @@ export type Database = {
           project_id?: number | null
           test_title?: string | null
           time_limit?: number | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -325,6 +327,7 @@ export type Database = {
           project_id?: number | null
           test_title?: string | null
           time_limit?: number | null
+          user_id?: string | null
         }
         Relationships: [
           {

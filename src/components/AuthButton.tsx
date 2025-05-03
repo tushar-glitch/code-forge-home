@@ -24,7 +24,7 @@ const AuthButton = () => {
     if (user && !userRole) {
       checkUserRole();
     }
-  }, [user, userRole]);
+  }, [user, userRole, checkUserRole]);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);

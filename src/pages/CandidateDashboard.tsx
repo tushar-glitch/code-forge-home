@@ -22,7 +22,8 @@ const CandidateDashboard = () => {
       
       try {
         const data = await getCandidateAssignments(user.email);
-        setAssignments(data as TestAssignment[]);
+        // Type assertion to fix TypeScript error
+        setAssignments(data as unknown as TestAssignment[]);
       } catch (error) {
         console.error("Error fetching assignments:", error);
       } finally {
