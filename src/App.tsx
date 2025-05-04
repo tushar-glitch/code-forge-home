@@ -15,6 +15,9 @@ import Submissions from "./pages/dashboard/Submissions";
 import TestManagement from "./pages/dashboard/TestManagement";
 import Settings from "./pages/dashboard/Settings";
 import InterviewWorkspace from "./pages/InterviewWorkspace";
+import InterviewWorkspace2 from "./pages/InterviewWorkspace2";
+import ProjectPreview from "./pages/ProjectPreview";
+import ProjectManagement from "./pages/dashboard/ProjectManagement";
 import GetStarted from "./pages/GetStarted";
 import CandidateDashboard from "./pages/CandidateDashboard";
 
@@ -75,6 +78,14 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/interview2/:assignmentId" 
+              element={
+                <ProtectedRoute allowedRoles={["candidate"]}>
+                  <InterviewWorkspace2 />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Protected Dashboard Routes - Recruiter Only */}
             <Route
@@ -118,10 +129,28 @@ const App = () => (
               }
             />
             <Route
+              path="/dashboard/projects"
+              element={
+                <ProtectedRoute allowedRoles={["recruiter"]}>
+                  <ProjectManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/dashboard/settings"
               element={
                 <ProtectedRoute allowedRoles={["recruiter"]}>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Project Preview - Recruiter Only */}
+            <Route
+              path="/project-preview/:projectId"
+              element={
+                <ProtectedRoute allowedRoles={["recruiter"]}>
+                  <ProjectPreview />
                 </ProtectedRoute>
               }
             />

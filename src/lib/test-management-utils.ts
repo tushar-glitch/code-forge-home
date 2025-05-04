@@ -172,7 +172,7 @@ export const fetchTests = async (): Promise<Test[]> => {
         id: test.id.toString(),
         project_id: test.project_id?.toString() || null,
         candidate_count: count || 0,
-        status: 'active' // Default status, you can customize this based on your needs
+        status: 'active' as 'active' | 'closed' | 'draft' // Fix the type issue with explicit typing
       };
     }));
 

@@ -126,6 +126,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          company_id: number
           created_at: string
           email: string
           hiring_count: number
@@ -135,6 +136,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          company_id: number
           created_at?: string
           email: string
           hiring_count: number
@@ -144,6 +146,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          company_id?: number
           created_at?: string
           email?: string
           hiring_count?: number
@@ -152,7 +155,15 @@ export type Database = {
           role?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -161,7 +172,7 @@ export type Database = {
           first_name: string | null
           id: number
           last_name: string | null
-          role: string | null
+          role: string
         }
         Insert: {
           company_id?: number | null
@@ -169,7 +180,7 @@ export type Database = {
           first_name?: string | null
           id?: number
           last_name?: string | null
-          role?: string | null
+          role: string
         }
         Update: {
           company_id?: number | null
@@ -177,7 +188,7 @@ export type Database = {
           first_name?: string | null
           id?: number
           last_name?: string | null
-          role?: string | null
+          role?: string
         }
         Relationships: [
           {
@@ -304,9 +315,9 @@ export type Database = {
           id: number
           instructions: string | null
           primary_language: string | null
-          project_id: number | null
-          test_title: string | null
-          time_limit: number | null
+          project_id: number
+          test_title: string
+          time_limit: number
           user_id: string | null
         }
         Insert: {
@@ -314,9 +325,9 @@ export type Database = {
           id?: number
           instructions?: string | null
           primary_language?: string | null
-          project_id?: number | null
-          test_title?: string | null
-          time_limit?: number | null
+          project_id: number
+          test_title: string
+          time_limit: number
           user_id?: string | null
         }
         Update: {
@@ -324,9 +335,9 @@ export type Database = {
           id?: number
           instructions?: string | null
           primary_language?: string | null
-          project_id?: number | null
-          test_title?: string | null
-          time_limit?: number | null
+          project_id?: number
+          test_title?: string
+          time_limit?: number
           user_id?: string | null
         }
         Relationships: [
