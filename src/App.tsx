@@ -15,7 +15,7 @@ import Submissions from "./pages/dashboard/Submissions";
 import TestManagement from "./pages/dashboard/TestManagement";
 import Settings from "./pages/dashboard/Settings";
 import InterviewWorkspace from "./pages/InterviewWorkspace";
-import InterviewWorkspace2 from "./pages/InterviewWorkspace2";
+import InterviewWorkspace2 from "./pages/InterviewWorkspace";
 import ProjectPreview from "./pages/ProjectPreview";
 import ProjectManagement from "./pages/dashboard/ProjectManagement";
 import GetStarted from "./pages/GetStarted";
@@ -70,16 +70,16 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route 
+            {/* <Route 
               path="/interview/:assignmentId" 
               element={
                 <ProtectedRoute allowedRoles={["candidate"]}>
                   <InterviewWorkspace />
                 </ProtectedRoute>
               } 
-            />
+            /> */}
             <Route 
-              path="/interview2/:assignmentId" 
+              path="/interview/:assignmentId" 
               element={
                 <ProtectedRoute allowedRoles={["candidate"]}>
                   <InterviewWorkspace2 />
