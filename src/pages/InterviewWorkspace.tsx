@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -10,7 +11,7 @@ import {
 } from "@codesandbox/sandpack-react";
 import { atomDark } from "@codesandbox/sandpack-themes";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Bot, Code2, MessageSquare, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -19,8 +20,11 @@ import {
   updateAssignmentStatus,
 } from "@/lib/test-management-utils";
 
+// Type definition for project files
+type ProjectFiles = Record<string, string>;
+
 // Default template files if no project is loaded
-const defaultFiles = {
+const defaultFiles: ProjectFiles = {
   "/App.js": `import React from 'react';
   
 export default function App() {
@@ -64,7 +68,7 @@ const InterviewWorkspace = () => {
   const { assignmentId } = useParams();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [projectFiles, setProjectFiles] = useState(defaultFiles);
+  const [projectFiles, setProjectFiles] = useState<ProjectFiles>(defaultFiles);
   const [activeFile, setActiveFile] = useState("/App.js");
   const [assignmentData, setAssignmentData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,42 +120,18 @@ const InterviewWorkspace = () => {
             // Load project files from project data if available
             if (project.files_json) {
               try {
-                const filesData = JSON.parse(project.files_json);
+                const filesData = project.files_json;
                 if (typeof filesData === "object" && filesData !== null) {
-                  // Transform the file structure to match Sandpack format
-                  const sandpackFiles: Record<string, string> = {};
-
-                  // Handle flat file structure (simple object with paths as keys)
-                  if (!Array.isArray(filesData)) {
-                    setProjectFiles(filesData);
+                  // Handle the case where files_json is already an object
+                  const parsedFiles = typeof filesData === "string" 
+                    ? JSON.parse(filesData) 
+                    : filesData;
+                  
+                  if (parsedFiles && typeof parsedFiles === "object") {
+                    setProjectFiles(parsedFiles as ProjectFiles);
                     // Set active file to the first file
-                    const firstFilePath = Object.keys(filesData)[0];
+                    const firstFilePath = Object.keys(parsedFiles)[0];
                     if (firstFilePath) setActiveFile(firstFilePath);
-                  }
-                  // Handle array-based file structure (from your current implementation)
-                  else if (Array.isArray(filesData)) {
-                    const processFile = (file: any, parentPath = "") => {
-                      const filePath = parentPath + "/" + file.name;
-                      if (!file.isFolder && file.defaultContent) {
-                        // Remove leading slash for consistency
-                        const cleanPath = filePath.startsWith("/")
-                          ? filePath
-                          : "/" + filePath;
-                        sandpackFiles[cleanPath] = file.defaultContent;
-                      }
-                      if (file.children && Array.isArray(file.children)) {
-                        file.children.forEach((child: any) =>
-                          processFile(child, filePath)
-                        );
-                      }
-                    };
-
-                    filesData.forEach((file: any) => processFile(file, ""));
-
-                    if (Object.keys(sandpackFiles).length > 0) {
-                      setProjectFiles(sandpackFiles);
-                      setActiveFile(Object.keys(sandpackFiles)[0]);
-                    }
                   }
                 }
               } catch (e) {
@@ -180,18 +160,21 @@ const InterviewWorkspace = () => {
 
             try {
               if (latestSubmission.content) {
-                const parsedContent = JSON.parse(latestSubmission.content);
+                const contentStr = String(latestSubmission.content);
+                const parsedContent = JSON.parse(contentStr);
                 if (typeof parsedContent === "object") {
-                  setProjectFiles(parsedContent);
+                  setProjectFiles(parsedContent as ProjectFiles);
                 }
               }
             } catch (e) {
               // Handle single file content format
               if (latestSubmission.file_path && latestSubmission.content) {
-                setProjectFiles({
-                  ...projectFiles,
-                  [latestSubmission.file_path]: latestSubmission.content,
-                });
+                const filePath = String(latestSubmission.file_path);
+                const content = String(latestSubmission.content);
+                setProjectFiles(prev => ({
+                  ...prev,
+                  [filePath]: content,
+                }));
               }
             }
           }
@@ -212,7 +195,7 @@ const InterviewWorkspace = () => {
   }, [user, assignmentId, navigate, toast]);
 
   // Handle file change
-  const handleFileChange = async (files: Record<string, string>) => {
+  const handleFileChange = async (files: ProjectFiles) => {
     // Automatically save content to Supabase when files change
     if (assignmentId) {
       try {
@@ -325,39 +308,67 @@ const InterviewWorkspace = () => {
         </div>
       </div>
 
-      {/* Sandpack Editor */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
-        <SandpackProvider
-          theme={atomDark}
-          files={projectFiles}
-          template="react"
-          customSetup={{
-            dependencies: {
-              react: "^18.0.0",
-              "react-dom": "^18.0.0",
-            },
-            
-          }}
-          autoSaveChanges
-          autorun
-        >
-          <SandpackLayout className="h-full w-full flex-1 min-h-0">
-            <SandpackFileExplorer className="h-full" />
-            <SandpackCodeEditor
-              showLineNumbers={true}
-              showInlineErrors
-              showTabs
-              wrapContent
-              closableTabs
-              className="flex-1 h-full w-full"
-            />
-            <SandpackPreview
-              showNavigator={true}
-              showRefreshButton
-              className="flex-1 h-full w-full"
-            />
-          </SandpackLayout>
-        </SandpackProvider>
+      {/* Main Content - Split into two sections */}
+      <div className="flex-1 flex flex-col">
+        {/* Sandpack Editor - Top Half */}
+        <div className="h-1/2 min-h-0 overflow-hidden">
+          <SandpackProvider
+            theme={atomDark}
+            files={projectFiles}
+            template="react"
+            customSetup={{
+              dependencies: {
+                react: "^18.0.0",
+                "react-dom": "^18.0.0",
+              },
+            }}
+            autorun
+          >
+            <SandpackLayout className="h-full">
+              <SandpackFileExplorer className="h-full" />
+              <SandpackCodeEditor
+                showLineNumbers={true}
+                showInlineErrors
+                showTabs
+                wrapContent
+                closableTabs
+                className="flex-1 h-full"
+              />
+              <SandpackPreview
+                showNavigator={true}
+                showRefreshButton
+                className="flex-1 h-full"
+              />
+            </SandpackLayout>
+          </SandpackProvider>
+        </div>
+        
+        {/* AI Interviewer - Bottom Half (Coming Soon) */}
+        <div className="h-1/2 border-t border-border bg-muted/30 p-6">
+          <div className="h-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 bg-background/50">
+            <div className="text-center max-w-md p-6">
+              <Bot className="w-16 h-16 mx-auto mb-4 text-primary/60" />
+              <h2 className="text-2xl font-bold mb-2">AI Interviewer Coming Soon</h2>
+              <p className="text-muted-foreground mb-6">
+                Our AI interviewer is currently under construction. Soon, you'll be able to chat with an AI that will ask coding questions and provide helpful feedback.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <div className="flex items-center p-2 rounded-md bg-muted/80">
+                  <Code2 className="h-5 w-5 mr-2 text-blue-500" />
+                  <span className="text-sm">Code Analysis</span>
+                </div>
+                <div className="flex items-center p-2 rounded-md bg-muted/80">
+                  <MessageSquare className="h-5 w-5 mr-2 text-green-500" />
+                  <span className="text-sm">Live Chat</span>
+                </div>
+                <div className="flex items-center p-2 rounded-md bg-muted/80">
+                  <Sparkles className="h-5 w-5 mr-2 text-amber-500" />
+                  <span className="text-sm">Smart Suggestions</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

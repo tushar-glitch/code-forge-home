@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import {
-  Sandpack,
   SandpackProvider,
   SandpackLayout,
   SandpackCodeEditor,
@@ -15,12 +14,15 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
+// Type definition for Sandpack files
+type SandpackFiles = Record<string, string>;
+
 const ProjectPreview = () => {
   const { projectId } = useParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<any>(null);
-  const [files, setFiles] = useState<Record<string, string>>({
+  const [files, setFiles] = useState<SandpackFiles>({
     "/App.js": 'export default function App() { return <h1>Loading project...</h1> }'
   });
 
@@ -33,7 +35,7 @@ const ProjectPreview = () => {
         const { data: project, error } = await supabase
           .from('code_projects')
           .select('*')
-          .eq('id', projectId)
+          .eq('id', parseInt(projectId))
           .single();
           
         if (error) throw error;
@@ -42,9 +44,16 @@ const ProjectPreview = () => {
         
         if (project.files_json) {
           try {
-            const filesData = JSON.parse(project.files_json);
+            const filesData = project.files_json;
             if (typeof filesData === 'object' && filesData !== null) {
-              setFiles(filesData);
+              // If files_json is already an object, use it directly
+              const parsedFiles = typeof filesData === "string" 
+                ? JSON.parse(filesData) 
+                : filesData;
+              
+              if (parsedFiles && typeof parsedFiles === "object") {
+                setFiles(parsedFiles as SandpackFiles);
+              }
             }
           } catch (e) {
             console.error("Error parsing project files:", e);
