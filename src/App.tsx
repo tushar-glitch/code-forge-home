@@ -19,6 +19,11 @@ import ProjectPreview from "./pages/ProjectPreview";
 import ProjectManagement from "./pages/dashboard/ProjectManagement";
 import GetStarted from "./pages/GetStarted";
 import CandidateDashboard from "./pages/CandidateDashboard";
+import CandidateDashboard2 from "./pages/candidate/CandidateDashboard2";
+import ChallengesPage from "./pages/candidate/ChallengesPage";
+import ContestsPage from "./pages/candidate/ContestsPage";
+import LeaderboardPage from "./pages/candidate/LeaderboardPage";
+import ProfilePage from "./pages/candidate/ProfilePage";
 
 // Role-based protected route component
 interface ProtectedRouteProps {
@@ -77,7 +82,49 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            
+
+            {/* New Candidate Experience Routes */}
+            <Route
+              path="/candidate/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={["candidate"]}>
+                  <CandidateDashboard2 />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/candidate/challenges"
+              element={
+                <ProtectedRoute allowedRoles={["candidate"]}>
+                  <ChallengesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/candidate/contests"
+              element={
+                <ProtectedRoute allowedRoles={["candidate"]}>
+                  <ContestsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/candidate/leaderboard"
+              element={
+                <ProtectedRoute allowedRoles={["candidate"]}>
+                  <LeaderboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/candidate/profile"
+              element={
+                <ProtectedRoute allowedRoles={["candidate"]}>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Protected Dashboard Routes - Recruiter Only */}
             <Route
               path="/dashboard"

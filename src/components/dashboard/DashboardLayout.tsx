@@ -19,7 +19,8 @@ import {
   Users, 
   FileText, 
   Settings as SettingsIcon, 
-  LogOut
+  LogOut,
+  FolderKanban
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -89,15 +90,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       active: title === "Test Management" 
     },
     { 
+      title: "Projects", 
+      icon: FolderKanban, 
+      path: "/dashboard/projects",
+      active: title === "Projects" 
+    },
+    { 
       title: "Settings", 
       icon: SettingsIcon, 
       path: "/dashboard/settings",
-      active: title === "Settings" 
-    },
-    { 
-      title: "asdf", 
-      icon: SettingsIcon, 
-      path: "/dashboard/projects",
       active: title === "Settings" 
     }
   ];
