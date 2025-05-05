@@ -618,7 +618,8 @@ root.render(<App />);`
                         multiple
                         className="mx-auto max-w-xs"
                         onChange={handleFileUpload}
-                        accept=".js,.jsx,.ts,.tsx,.css,.html"
+                        webkitdirectory="true"
+                        // accept=".js,.jsx,.ts,.tsx,.css,.html"
                       />
                       <p className="mt-4 text-xs text-muted-foreground">
                         Note: For complex projects, the file editor is recommended

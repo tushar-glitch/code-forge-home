@@ -30,14 +30,14 @@ const TestimonialsSection = () => {
   const testimonials = [
     {
       quote:
-        "hire10xdevs has completely transformed our hiring process. We're able to evaluate candidates' real-world skills in a way that traditional interviews simply couldn't match.",
+        "Hire10xdevs has completely transformed our hiring process. We're able to evaluate candidates' real-world skills in a way that traditional interviews simply couldn't match.",
       name: "Sarah Johnson",
       title: "CTO, TechGrowth",
       avatar: "SJ",
     },
     {
       quote:
-        "The quality of engineers we've hired since implementing hire10xdevs has increased dramatically. The platform lets us see exactly how candidates think and solve problems.",
+        "The quality of engineers we've hired since implementing Hire10xdevs has increased dramatically. The platform lets us see exactly how candidates think and solve problems.",
       name: "Michael Chen",
       title: "Engineering Manager, DevScale",
       avatar: "MC",
@@ -79,7 +79,7 @@ const TestimonialsSection = () => {
             What our <span className="gradient-text">customers say</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto reveal animation-delay-200">
-            Companies across the tech industry are transforming their hiring process with hire10xdevs
+            Companies across the tech industry are transforming their hiring process with Hire10xdevs
           </p>
         </div>
 

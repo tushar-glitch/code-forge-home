@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -8,6 +7,7 @@ import {
   SandpackCodeEditor,
   SandpackPreview,
   SandpackFileExplorer,
+  SandpackConsole,
 } from "@codesandbox/sandpack-react";
 import { atomDark } from "@codesandbox/sandpack-themes";
 import { Button } from "@/components/ui/button";
@@ -121,12 +121,13 @@ const InterviewWorkspace = () => {
             if (project.files_json) {
               try {
                 const filesData = project.files_json;
-                if (typeof filesData === "object" && filesData !== null) {
+                if (filesData !== null) {
                   // Handle the case where files_json is already an object
-                  const parsedFiles = typeof filesData === "string" 
-                    ? JSON.parse(filesData) 
-                    : filesData;
-                  
+                  const parsedFiles =
+                    typeof filesData === "string"
+                      ? JSON.parse(filesData)
+                      : filesData;
+
                   if (parsedFiles && typeof parsedFiles === "object") {
                     setProjectFiles(parsedFiles as ProjectFiles);
                     // Set active file to the first file
@@ -171,7 +172,7 @@ const InterviewWorkspace = () => {
               if (latestSubmission.file_path && latestSubmission.content) {
                 const filePath = String(latestSubmission.file_path);
                 const content = String(latestSubmission.content);
-                setProjectFiles(prev => ({
+                setProjectFiles((prev) => ({
                   ...prev,
                   [filePath]: content,
                 }));
@@ -337,20 +338,30 @@ const InterviewWorkspace = () => {
               <SandpackPreview
                 showNavigator={true}
                 showRefreshButton
+                showOpenInCodeSandbox={false}
                 className="flex-1 h-full"
+              />
+              <SandpackConsole
+                className="h-48 overflow-auto bg-black text-white p-2 text-sm"
+                standalone={false}
+                showHeader={false}
               />
             </SandpackLayout>
           </SandpackProvider>
         </div>
-        
+
         {/* AI Interviewer - Bottom Half (Coming Soon) */}
         <div className="h-1/2 border-t border-border bg-muted/30 p-6">
           <div className="h-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 bg-background/50">
             <div className="text-center max-w-md p-6">
               <Bot className="w-16 h-16 mx-auto mb-4 text-primary/60" />
-              <h2 className="text-2xl font-bold mb-2">AI Interviewer Coming Soon</h2>
+              <h2 className="text-2xl font-bold mb-2">
+                AI Interviewer Coming Soon
+              </h2>
               <p className="text-muted-foreground mb-6">
-                Our AI interviewer is currently under construction. Soon, you'll be able to chat with an AI that will ask coding questions and provide helpful feedback.
+                Our AI interviewer is currently under construction. Soon, you'll
+                be able to chat with an AI that will ask coding questions and
+                provide helpful feedback.
               </p>
               <div className="flex gap-4 justify-center">
                 <div className="flex items-center p-2 rounded-md bg-muted/80">

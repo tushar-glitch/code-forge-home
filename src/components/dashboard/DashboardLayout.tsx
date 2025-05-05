@@ -93,6 +93,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       icon: SettingsIcon, 
       path: "/dashboard/settings",
       active: title === "Settings" 
+    },
+    { 
+      title: "asdf", 
+      icon: SettingsIcon, 
+      path: "/dashboard/projects",
+      active: title === "Settings" 
     }
   ];
   
