@@ -95,7 +95,7 @@ const AuthButton = () => {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer"
-          onClick={() => navigate(userRole === "candidate" ? "/candidate-dashboard" : "/dashboard")}
+          onClick={() => navigate(userRole === "candidate" ? "/candidate/dashboard" : "/dashboard")}
         >
           {userRole === "candidate" ? "My Assignments" : "Dashboard"}
         </DropdownMenuItem>

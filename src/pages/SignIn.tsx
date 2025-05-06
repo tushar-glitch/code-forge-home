@@ -36,11 +36,11 @@ const SignIn = ({ userType = "recruiter", onSuccess }: SignInProps) => {
       if (userType === "recruiter" && userRole === "recruiter") {
         navigate("/dashboard");
       } else if (userType === "candidate" && userRole === "candidate") {
-        navigate("/candidate-dashboard");
+        navigate("/candidate/dashboard");
       } else if (userRole) {
         // If user is trying to access wrong area, redirect to their appropriate dashboard
         navigate(
-          userRole === "candidate" ? "/candidate-dashboard" : "/dashboard"
+          userRole === "candidate" ? "/candidate/dashboard" : "/dashboard"
         );
       }
     }

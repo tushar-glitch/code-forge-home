@@ -221,7 +221,7 @@ const InterviewWorkspace = () => {
           "This is just a demo. In a real test, your work would be submitted for review.",
       });
       // In a demo, just navigate back to the dashboard
-      setTimeout(() => navigate("/candidate-dashboard"), 2000);
+      setTimeout(() => navigate("/candidate/dashboard"), 2000);
       return;
     }
 
@@ -256,7 +256,7 @@ const InterviewWorkspace = () => {
       });
 
       // Redirect to the candidate dashboard
-      setTimeout(() => navigate("/candidate-dashboard"), 2000);
+      setTimeout(() => navigate("/candidate/dashboard"), 2000);
     } catch (error) {
       console.error("Error submitting assignment:", error);
       toast({

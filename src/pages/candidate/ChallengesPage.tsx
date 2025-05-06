@@ -22,7 +22,8 @@ import {
   Star,
   CheckCircle,
   Calendar,
-  XCircle
+  XCircle,
+  Users
 } from "lucide-react";
 import ChallengeCard, { Challenge } from "@/components/candidate/ChallengeCard";
 import SponsoredBanner from "@/components/candidate/SponsoredBanner";

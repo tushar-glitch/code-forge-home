@@ -24,6 +24,15 @@ import {
   BarChart,
   Settings
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import BadgeDisplay, { DeveloperBadge } from "@/components/candidate/BadgeDisplay";
 import ChallengeCard, { Challenge } from "@/components/candidate/ChallengeCard";
 import ActivityCard, { Activity } from "@/components/candidate/ActivityCard";

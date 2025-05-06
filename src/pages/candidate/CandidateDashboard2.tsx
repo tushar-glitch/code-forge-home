@@ -423,7 +423,7 @@ const CandidateDashboard2 = () => {
               <Button 
                 variant="outline" 
                 className="w-full flex justify-center items-center gap-1"
-                onClick={() => navigate('/challenges')}
+                onClick={() => navigate('/candidate/challenges')}
               >
                 View All Challenges
                 <ChevronRight className="h-4 w-4" />
@@ -563,7 +563,7 @@ const CandidateDashboard2 = () => {
                 <FileText className="h-5 w-5 text-primary" />
                 Your Proof-of-Work
               </h2>
-              <Button size="sm" onClick={() => navigate('/profile')}>
+              <Button size="sm" onClick={() => navigate('/candidate/profile')}>
                 View Profile
               </Button>
             </div>

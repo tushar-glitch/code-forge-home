@@ -112,7 +112,7 @@ const NavBar = () => {
           </DialogHeader>
           <SignIn userType="candidate" onSuccess={() => {
             setIsCandidateModalOpen(false);
-            navigate("/candidate-dashboard");
+            navigate("/candidate/dashboard");
           }} />
         </DialogContent>
       </Dialog>

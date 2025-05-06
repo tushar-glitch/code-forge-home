@@ -30,13 +30,13 @@ const isRecruiterPath = (path: string): boolean => {
 
 // Helper function to check if path is meant for candidates
 const isCandidatePath = (path: string): boolean => {
-  return path.startsWith("/candidate-dashboard") || path.startsWith("/interview");
+  return path.startsWith("/candidate/dashboard") || path.startsWith("/interview");
 };
 
 // Helper to determine where to redirect users based on their role
 const getRedirectPath = (role: UserRole | null): string => {
   if (role === "recruiter") return "/dashboard";
-  if (role === "candidate") return "/candidate-dashboard";
+  if (role === "candidate") return "/candidate/dashboard";
   return "/";
 };
 
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           description: "Candidates cannot access recruiter pages",
           variant: "destructive"
         });
-        navigate("/candidate-dashboard");
+        navigate("/candidate/dashboard");
       } else if (isCandidatePath(location.pathname) && userRole === "recruiter") {
         toast({
           title: "Access Denied",
@@ -186,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email, 
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}${role === "recruiter" ? "/dashboard" : "/candidate-dashboard"}`,
+          emailRedirectTo: `${window.location.origin}${role === "recruiter" ? "/dashboard" : "/candidate/dashboard"}`,
         }
       });
 

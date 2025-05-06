@@ -44,7 +44,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   
   if (!isAuthorized(allowedRoles)) {
     // Redirect to appropriate dashboard based on role
-    return <Navigate to={userRole === "candidate" ? "/candidate-dashboard" : "/dashboard"} replace />;
+    return <Navigate to={userRole === "candidate" ? "/candidate/dashboard" : "/dashboard"} replace />;
   }
   
   return children;
@@ -66,14 +66,6 @@ const App = () => (
             <Route path="/get-started" element={<GetStarted />} />
             
             {/* Candidate Routes */}
-            <Route
-              path="/candidate-dashboard"
-              element={
-                <ProtectedRoute allowedRoles={["candidate"]}>
-                  <CandidateDashboard />
-                </ProtectedRoute>
-              }
-            />
             <Route 
               path="/interview/:assignmentId" 
               element={
