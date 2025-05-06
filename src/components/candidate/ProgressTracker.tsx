@@ -1,18 +1,57 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProgressTrackerProps {
   currentXP: number;
   nextLevelXP: number;
   level: number;
+  userId?: string;
 }
 
 const ProgressTracker: React.FC<ProgressTrackerProps> = ({ 
-  currentXP, 
-  nextLevelXP, 
-  level 
+  currentXP: initialXP, 
+  nextLevelXP: initialNextXP, 
+  level: initialLevel,
+  userId
 }) => {
+  const [currentXP, setCurrentXP] = useState(initialXP);
+  const [nextLevelXP, setNextLevelXP] = useState(initialNextXP);
+  const [level, setLevel] = useState(initialLevel);
+  const [loading, setLoading] = useState(!!userId);
+
+  useEffect(() => {
+    if (userId) {
+      const fetchUserProgress = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('developer_profiles')
+            .select('xp_points, next_level_xp, level')
+            .eq('id', userId)
+            .single();
+
+          if (error) {
+            console.error('Error fetching user progress:', error);
+            return;
+          }
+
+          if (data) {
+            setCurrentXP(data.xp_points);
+            setNextLevelXP(data.next_level_xp);
+            setLevel(data.level);
+          }
+        } catch (error) {
+          console.error('Error in progress tracker:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchUserProgress();
+    }
+  }, [userId]);
+
   const percentage = Math.min(100, Math.floor((currentXP / nextLevelXP) * 100));
   
   return (
@@ -23,6 +62,7 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
             {level}
           </div>
           <span className="text-sm font-medium">Developer Level</span>
+          {loading && <span className="text-xs text-muted-foreground">(Loading...)</span>}
         </div>
         <span className="text-xs text-muted-foreground">{currentXP} / {nextLevelXP} XP</span>
       </div>

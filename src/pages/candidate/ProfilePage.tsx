@@ -1,547 +1,602 @@
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import {
-  Trophy,
-  Medal,
-  Star,
-  Calendar,
-  User,
-  FileText,
-  Award,
-  Code,
-  Github,
-  Linkedin,
-  ExternalLink,
-  Share2,
-  Download,
-  BarChart,
-  Settings
-} from "lucide-react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar, Trophy, Star, CheckCircle, Edit, Loader2 } from "lucide-react";
+import CandidateNavbar from "@/components/candidate/CandidateNavbar";
+import ProgressTracker from "@/components/candidate/ProgressTracker";
 import BadgeDisplay, { DeveloperBadge } from "@/components/candidate/BadgeDisplay";
-import ChallengeCard, { Challenge } from "@/components/candidate/ChallengeCard";
 import ActivityCard, { Activity } from "@/components/candidate/ActivityCard";
-
-// Sample profile data
-const profileData = {
-  id: "42",
-  username: "yourcoolname",
-  fullName: "Your Full Name",
-  avatarUrl: "",
-  bio: "Frontend developer passionate about creating clean, accessible and performant web applications. I enjoy solving complex problems and continuously learning new technologies.",
-  joinDate: new Date(Date.now() - 86400000 * 60).toISOString(),
-  skills: ["React", "TypeScript", "Tailwind CSS", "Node.js", "Express", "MongoDB", "GraphQL"],
-  level: 12,
-  currentXP: 850,
-  nextLevelXP: 1000,
-  rank: 27,
-  totalScore: 1250,
-  totalSubmissions: 23,
-  challengesSolved: 15,
-  githubUrl: "https://github.com",
-  linkedinUrl: "https://linkedin.com",
-  portfolioUrl: "https://portfolio.com",
-};
-
-// Sample badges
-const dummyBadges: DeveloperBadge[] = [
-  {
-    id: "1",
-    name: "Bug Hunter",
-    icon: "🐞",
-    description: "Found and fixed 10 bugs in challenges",
-    rarity: "common"
-  },
-  {
-    id: "2",
-    name: "Code Ninja",
-    icon: "🥷",
-    description: "Completed 5 advanced challenges",
-    rarity: "rare"
-  },
-  {
-    id: "3",
-    name: "Performance Guru",
-    icon: "⚡",
-    description: "Optimized a React app to improve performance by 50%",
-    rarity: "epic"
-  },
-  {
-    id: "4",
-    name: "Frontend Master",
-    icon: "🎨",
-    description: "Demonstrated exceptional UI/UX skills",
-    rarity: "rare"
-  },
-  {
-    id: "5",
-    name: "Team Player",
-    icon: "👥",
-    description: "Successfully collaborated on group challenges",
-    rarity: "common"
-  }
-];
-
-// Sample challenges
-const dummyChallenges: Challenge[] = [
-  {
-    id: "1",
-    title: "React Performance Optimization",
-    description: "Optimize a slow React app to improve rendering performance",
-    difficulty: "advanced",
-    tags: ["React", "Performance", "Hooks"],
-    solvedCount: 128,
-    totalAttempts: 345,
-    daysActive: 14,
-    topContributors: [
-      { id: "1", username: "reactninja" },
-      { id: "2", username: "devmaster" },
-      { id: "3", username: "codewizard" }
-    ],
-    isCompleted: true
-  },
-  {
-    id: "2",
-    title: "Build a Responsive Dashboard",
-    description: "Create a responsive admin dashboard with Tailwind CSS",
-    difficulty: "intermediate",
-    tags: ["Tailwind", "CSS", "Responsive"],
-    solvedCount: 245,
-    totalAttempts: 412,
-    daysActive: 21,
-    topContributors: [
-      { id: "1", username: "reactninja" },
-      { id: "4", username: "javascriptguru" },
-      { id: "5", username: "typescriptpro" }
-    ],
-    isCompleted: true
-  },
-  {
-    id: "3",
-    title: "Authentication System with Node.js",
-    description: "Build a secure authentication system with JWT",
-    difficulty: "advanced",
-    tags: ["Node.js", "Express", "JWT"],
-    solvedCount: 87,
-    totalAttempts: 320,
-    daysActive: 30,
-    topContributors: [
-      { id: "2", username: "devmaster" },
-      { id: "6", username: "backenddev" },
-      { id: "7", username: "securityexpert" }
-    ],
-    isCompleted: true
-  },
-];
-
-// Sample activities
-const dummyActivities: Activity[] = [
-  {
-    id: "1",
-    title: "You completed the React Performance Challenge",
-    type: "challenge_completed",
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    details: {
-      challengeName: "React Performance Challenge"
-    }
-  },
-  {
-    id: "2",
-    title: "You earned the Bug Hunter Badge",
-    type: "badge_earned",
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    details: {
-      badgeName: "Bug Hunter"
-    }
-  },
-  {
-    id: "3",
-    title: "You joined the Frontend Masters Contest",
-    type: "contest_joined",
-    timestamp: new Date(Date.now() - 172800000).toISOString(),
-    details: {
-      contestName: "Frontend Masters Contest"
-    }
-  },
-  {
-    id: "4",
-    title: "Your rank changed from #42 to #27",
-    type: "ranking_change",
-    timestamp: new Date(Date.now() - 259200000).toISOString(),
-    details: {
-      oldRank: 42,
-      newRank: 27
-    }
-  }
-];
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const ProfilePage = () => {
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
   
-  const percentage = Math.min(100, Math.floor((profileData.currentXP / profileData.nextLevelXP) * 100));
+  // Profile data
+  const [profile, setProfile] = useState({
+    username: "",
+    fullName: "",
+    avatarUrl: "",
+    bio: "",
+    githubUrl: "",
+    linkedinUrl: "",
+    level: 1,
+    xpPoints: 0,
+    nextLevelXp: 1000,
+    joinDate: new Date().toISOString(),
+  });
   
-  return (
-    <div className="container max-w-7xl mx-auto py-8 px-4">
-      {/* Profile Header */}
-      <div className="mb-8">
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent h-32 relative">
-            <div className="absolute -bottom-16 left-8">
-              <Avatar className="h-32 w-32 border-4 border-background">
-                <AvatarImage src={profileData.avatarUrl} />
-                <AvatarFallback className="text-4xl font-bold">
-                  {profileData.username.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            <div className="absolute top-4 right-4 flex gap-2">
-              <Button variant="outline" size="sm" className="bg-background/80 backdrop-blur-sm">
-                <Share2 className="h-4 w-4 mr-2" />
-                Share Profile
-              </Button>
-              <Button variant="outline" size="sm" className="bg-background/80 backdrop-blur-sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export Resume
-              </Button>
-              <Button variant="outline" size="icon" size-="sm" className="bg-background/80 backdrop-blur-sm">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+  // Form state for editing
+  const [formData, setFormData] = useState({
+    username: "",
+    fullName: "",
+    bio: "",
+    githubUrl: "",
+    linkedinUrl: "",
+  });
+  
+  // Skills state
+  const [skills, setSkills] = useState<string[]>([]);
+  const [newSkill, setNewSkill] = useState("");
+  
+  // Badges state
+  const [badges, setBadges] = useState<DeveloperBadge[]>([]);
+  
+  // Activity state
+  const [activities, setActivities] = useState<Activity[]>([]);
+  
+  // Stats state
+  const [stats, setStats] = useState({
+    challengesCompleted: 0,
+    contestsParticipated: 0,
+    rank: 0,
+  });
+  
+  // Loading states
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [loadingActivities, setLoadingActivities] = useState(true);
+  const [loadingBadges, setLoadingBadges] = useState(true);
+  
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    
+    const fetchProfileData = async () => {
+      try {
+        // Fetch user profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('developer_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
           
-          <div className="mt-20 px-8 pb-6">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold">{profileData.username}</h1>
-                {profileData.fullName && (
-                  <p className="text-muted-foreground">{profileData.fullName}</p>
-                )}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <Badge variant="outline" className="flex gap-1 items-center">
-                    <Trophy className="h-3 w-3" /> 
-                    Rank #{profileData.rank}
-                  </Badge>
-                  <Badge variant="outline" className="flex gap-1 items-center">
-                    <Calendar className="h-3 w-3" /> 
-                    Joined {new Date(profileData.joinDate).toLocaleDateString("en-US", { month: 'long', year: 'numeric' })}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="flex gap-2">
-                {profileData.githubUrl && (
-                  <Button variant="outline" size="icon" asChild>
-                    <a href={profileData.githubUrl} target="_blank" rel="noopener noreferrer">
-                      <Github className="h-4 w-4" />
-                    </a>
-                  </Button>
-                )}
-                {profileData.linkedinUrl && (
-                  <Button variant="outline" size="icon" asChild>
-                    <a href={profileData.linkedinUrl} target="_blank" rel="noopener noreferrer">
-                      <Linkedin className="h-4 w-4" />
-                    </a>
-                  </Button>
-                )}
-                {profileData.portfolioUrl && (
-                  <Button variant="outline" size="icon" asChild>
-                    <a href={profileData.portfolioUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </div>
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+        } else if (profileData) {
+          setProfile({
+            username: profileData.username || "",
+            fullName: profileData.full_name || "",
+            avatarUrl: profileData.avatar_url || "",
+            bio: profileData.bio || "",
+            githubUrl: profileData.github_url || "",
+            linkedinUrl: profileData.linkedin_url || "",
+            level: profileData.level || 1,
+            xpPoints: profileData.xp_points || 0,
+            nextLevelXp: profileData.next_level_xp || 1000,
+            joinDate: profileData.join_date || new Date().toISOString(),
+          });
+          
+          setFormData({
+            username: profileData.username || "",
+            fullName: profileData.full_name || "",
+            bio: profileData.bio || "",
+            githubUrl: profileData.github_url || "",
+            linkedinUrl: profileData.linkedin_url || "",
+          });
+        }
+        
+        // Fetch user skills
+        const { data: skillsData, error: skillsError } = await supabase
+          .from('user_skills')
+          .select('skill')
+          .eq('user_id', user.id);
+          
+        if (!skillsError && skillsData) {
+          setSkills(skillsData.map(s => s.skill));
+        }
+        
+        // Fetch user badges
+        setLoadingBadges(true);
+        const { data: userBadgesData, error: userBadgesError } = await supabase
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', user.id);
+          
+        if (!userBadgesError && userBadgesData && userBadgesData.length > 0) {
+          const badgeIds = userBadgesData.map(ub => ub.badge_id);
+          
+          const { data: badgesData, error: badgesError } = await supabase
+            .from('developer_badges')
+            .select('*')
+            .in('id', badgeIds);
             
-            {/* Bio */}
-            {profileData.bio && (
-              <p className="mt-4 text-muted-foreground">{profileData.bio}</p>
-            )}
-            
-            {/* Skills */}
-            <div className="flex flex-wrap gap-1 mt-4">
-              {profileData.skills.map(skill => (
-                <Badge key={skill} variant="secondary">
-                  {skill}
-                </Badge>
-              ))}
-            </div>
-          </div>
+          if (!badgesError && badgesData) {
+            setBadges(badgesData as DeveloperBadge[]);
+          }
+        }
+        setLoadingBadges(false);
+        
+        // Fetch user activities
+        setLoadingActivities(true);
+        const { data: activitiesData, error: activitiesError } = await supabase
+          .from('user_activities')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5);
+          
+        if (!activitiesError && activitiesData) {
+          setActivities(activitiesData as Activity[]);
+        }
+        setLoadingActivities(false);
+        
+        // Calculate stats
+        const { data: challengeData, error: challengeError } = await supabase
+          .from('challenge_attempts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'completed');
+          
+        const { data: contestData, error: contestError } = await supabase
+          .from('contest_participants')
+          .select('*')
+          .eq('user_id', user.id);
+          
+        // Get user rank
+        const { count: higherRanked, error: rankError } = await supabase
+          .from('developer_profiles')
+          .select('*', { count: 'exact', head: true })
+          .gt('xp_points', profileData?.xp_points || 0);
+          
+        setStats({
+          challengesCompleted: challengeData?.length || 0,
+          contestsParticipated: contestData?.length || 0,
+          rank: (higherRanked || 0) + 1,
+        });
+        
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProfileData();
+  }, [user]);
+  
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    
+    try {
+      setSavingProfile(true);
+      
+      // Update profile in database
+      const { error } = await supabase
+        .from('developer_profiles')
+        .update({
+          username: formData.username,
+          full_name: formData.fullName,
+          bio: formData.bio,
+          github_url: formData.githubUrl,
+          linkedin_url: formData.linkedinUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setProfile(prev => ({
+        ...prev,
+        username: formData.username,
+        fullName: formData.fullName,
+        bio: formData.bio,
+        githubUrl: formData.githubUrl,
+        linkedinUrl: formData.linkedinUrl,
+      }));
+      
+      setEditMode(false);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+  
+  const handleAddSkill = async () => {
+    if (!user || !newSkill.trim()) return;
+    
+    try {
+      // Check if skill already exists
+      if (skills.includes(newSkill.trim())) {
+        setNewSkill("");
+        return;
+      }
+      
+      // Add skill to database
+      const { error } = await supabase
+        .from('user_skills')
+        .insert({
+          user_id: user.id,
+          skill: newSkill.trim(),
+        });
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setSkills(prev => [...prev, newSkill.trim()]);
+      setNewSkill("");
+    } catch (error) {
+      console.error('Error adding skill:', error);
+    }
+  };
+  
+  const handleRemoveSkill = async (skill: string) => {
+    if (!user) return;
+    
+    try {
+      // Remove skill from database
+      const { error } = await supabase
+        .from('user_skills')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('skill', skill);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setSkills(prev => prev.filter(s => s !== skill));
+    } catch (error) {
+      console.error('Error removing skill:', error);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <CandidateNavbar />
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <CandidateNavbar />
       
-      {/* Profile Content with Tabs */}
-      <div className="mb-8">
-        <Tabs defaultValue="overview" onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="challenges" className="flex items-center gap-2">
-              <Code className="h-4 w-4" />
-              Challenges ({dummyChallenges.length})
-            </TabsTrigger>
-            <TabsTrigger value="badges" className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Badges ({dummyBadges.length})
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="flex items-center gap-2">
-              <BarChart className="h-4 w-4" />
-              Activity
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="overview" className="space-y-8">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Trophy className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Rank</p>
-                      <p className="text-2xl font-bold">#{profileData.rank}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Star className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Score</p>
-                      <p className="text-2xl font-bold">{profileData.totalScore}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Code className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Challenges Solved</p>
-                      <p className="text-2xl font-bold">{profileData.challengesSolved}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Medal className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Badges Earned</p>
-                      <p className="text-2xl font-bold">{dummyBadges.length}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Progress Section */}
+      <div className="container max-w-7xl mx-auto py-8 px-4">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-8">
+          {/* Left Column - Profile Info */}
+          <div className="w-full md:w-2/3 space-y-8">
             <Card>
-              <CardHeader>
-                <CardTitle>Developer Progress</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                        {profileData.level}
-                      </div>
-                      <span className="font-medium">Level {profileData.level}</span>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16 border-2 border-primary/10">
+                      <AvatarImage src={profile.avatarUrl} />
+                      <AvatarFallback className="text-lg">
+                        {profile.username.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <CardTitle className="text-2xl">{profile.fullName || profile.username}</CardTitle>
+                      <CardDescription>@{profile.username}</CardDescription>
                     </div>
-                    <span className="text-sm text-muted-foreground">{profileData.currentXP} / {profileData.nextLevelXP} XP</span>
                   </div>
-                  <Progress value={percentage} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {profileData.nextLevelXP - profileData.currentXP} XP needed for next level
-                  </p>
+                  <Button 
+                    variant={editMode ? "outline" : "default"} 
+                    size="sm"
+                    onClick={() => setEditMode(!editMode)}
+                  >
+                    <Edit className="h-4 w-4 mr-1" />
+                    {editMode ? "Cancel" : "Edit Profile"}
+                  </Button>
                 </div>
-                
-                <Separator />
-                
-                {/* Recent Badges */}
-                <div>
-                  <h3 className="text-sm font-medium mb-3">Recently Earned Badges</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {dummyBadges.slice(0, 4).map(badge => (
-                      <BadgeDisplay key={badge.id} badge={badge} />
-                    ))}
-                    {dummyBadges.length > 4 && (
+              </CardHeader>
+              <CardContent>
+                {editMode ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Username</label>
+                        <Input 
+                          value={formData.username} 
+                          onChange={e => setFormData(prev => ({...prev, username: e.target.value}))}
+                          placeholder="Username"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Full Name</label>
+                        <Input 
+                          value={formData.fullName} 
+                          onChange={e => setFormData(prev => ({...prev, fullName: e.target.value}))}
+                          placeholder="Full Name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Bio</label>
+                      <Textarea 
+                        value={formData.bio} 
+                        onChange={e => setFormData(prev => ({...prev, bio: e.target.value}))}
+                        placeholder="Tell us about yourself"
+                        rows={4}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">GitHub URL</label>
+                        <Input 
+                          value={formData.githubUrl} 
+                          onChange={e => setFormData(prev => ({...prev, githubUrl: e.target.value}))}
+                          placeholder="https://github.com/username"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">LinkedIn URL</label>
+                        <Input 
+                          value={formData.linkedinUrl} 
+                          onChange={e => setFormData(prev => ({...prev, linkedinUrl: e.target.value}))}
+                          placeholder="https://linkedin.com/in/username"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button 
+                        onClick={handleSaveProfile}
+                        disabled={savingProfile}
+                      >
+                        {savingProfile ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : "Save Profile"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>
+                          Joined {new Date(profile.joinDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Trophy className="h-4 w-4" />
+                        <span>Rank #{stats.rank}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-4 w-4" />
+                        <span>{profile.xpPoints} XP</span>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div>
+                      <h3 className="font-medium mb-2">Bio</h3>
+                      <p className="text-sm">{profile.bio || "No bio provided."}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.githubUrl && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
+                        </Button>
+                      )}
+                      {profile.linkedinUrl && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={profile.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Skills */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Skills</CardTitle>
+                <CardDescription>Add your technical skills</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {skills.map(skill => (
+                    <Badge key={skill} variant="secondary" className="gap-1">
+                      {skill}
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="rounded-full w-12 h-12"
-                        onClick={() => setActiveTab("badges")}
+                        className="h-4 w-4 ml-1 rounded-full text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRemoveSkill(skill)}
                       >
-                        +{dummyBadges.length - 4}
+                        &times;
                       </Button>
-                    )}
-                  </div>
+                    </Badge>
+                  ))}
+                  {skills.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No skills added yet.</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Select value={newSkill} onValueChange={setNewSkill}>
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue placeholder="Add a skill" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="React">React</SelectItem>
+                      <SelectItem value="TypeScript">TypeScript</SelectItem>
+                      <SelectItem value="JavaScript">JavaScript</SelectItem>
+                      <SelectItem value="Node.js">Node.js</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={handleAddSkill} disabled={!newSkill.trim()}>
+                    Add Skill
+                  </Button>
                 </div>
               </CardContent>
             </Card>
             
-            {/* Recent Challenges */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Recent Challenges</h2>
-                <Button variant="ghost" size="sm" onClick={() => setActiveTab("challenges")}>
-                  View All
-                </Button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {dummyChallenges.slice(0, 3).map(challenge => (
-                  <ChallengeCard key={challenge.id} challenge={challenge} />
-                ))}
-              </div>
-            </div>
-            
-            {/* Recent Activity */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Recent Activity</h2>
-                <Button variant="ghost" size="sm" onClick={() => setActiveTab("activity")}>
-                  View All
-                </Button>
-              </div>
-              
-              <div className="space-y-3">
-                {dummyActivities.slice(0, 3).map(activity => (
-                  <ActivityCard key={activity.id} activity={activity} />
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="challenges">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Your Challenges</h2>
-                <div className="flex items-center gap-2">
-                  <Badge className="flex items-center gap-1">
-                    <Star className="h-3 w-3" />
-                    {dummyChallenges.length} Completed
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {dummyChallenges.map(challenge => (
-                  <ChallengeCard key={challenge.id} challenge={challenge} />
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="badges">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Your Badges</h2>
-                <Badge className="flex items-center gap-1">
-                  <Trophy className="h-3 w-3" />
-                  {dummyBadges.length} Earned
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {dummyBadges.map(badge => (
-                  <Card key={badge.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                    <div className={`h-1 w-full ${
-                      badge.rarity === 'common' ? 'bg-slate-500' :
-                      badge.rarity === 'uncommon' ? 'bg-green-500' :
-                      badge.rarity === 'rare' ? 'bg-blue-500' :
-                      badge.rarity === 'epic' ? 'bg-purple-500' :
-                      'bg-amber-500'
-                    }`} />
-                    <CardContent className="pt-6 flex items-center gap-4">
-                      <div className="flex-shrink-0">
-                        <BadgeDisplay badge={badge} size="lg" />
+            {/* Badges */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Badges</CardTitle>
+                <CardDescription>Badges you've earned</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingBadges ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : badges.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Complete challenges to earn badges
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 py-2">
+                    {badges.map(badge => (
+                      <div key={badge.id} className="flex flex-col items-center gap-2 p-4 bg-muted/20 rounded-lg">
+                        <BadgeDisplay badge={badge} size="md" />
+                        <div className="text-center">
+                          <p className="font-medium">{badge.name}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{badge.description}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-medium">{badge.name}</h3>
-                        <p className="text-sm text-muted-foreground">{badge.description}</p>
-                        <Badge variant="outline" className="mt-2 text-xs">
-                          {badge.rarity.charAt(0).toUpperCase() + badge.rarity.slice(1)}
-                        </Badge>
-                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Right Column - Stats, Activity */}
+          <div className="w-full md:w-1/3 space-y-8">
+            {/* Progress Bar */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Your Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProgressTracker 
+                  currentXP={profile.xpPoints} 
+                  nextLevelXP={profile.nextLevelXp} 
+                  level={profile.level}
+                  userId={user?.id}
+                />
+                
+                <Separator className="my-4" />
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center p-4">
+                      <span className="text-2xl font-bold text-primary">{stats.challengesCompleted}</span>
+                      <span className="text-xs text-muted-foreground">Challenges Completed</span>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="activity">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Activity History</h2>
-                <Select>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Filter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Activity</SelectItem>
-                    <SelectItem value="challenges">Challenges</SelectItem>
-                    <SelectItem value="badges">Badges</SelectItem>
-                    <SelectItem value="contests">Contests</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-3">
-                {dummyActivities.map(activity => (
-                  <ActivityCard key={activity.id} activity={activity} />
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-      
-      {/* Export Profile */}
-      <Card>
-        <CardContent className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <FileText className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-medium">Export Your Profile as a Resume</h3>
-              <p className="text-sm text-muted-foreground">
-                Showcase your skills, completed challenges, and badges to potential employers
-              </p>
-            </div>
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center p-4">
+                      <span className="text-2xl font-bold text-primary">{stats.contestsParticipated}</span>
+                      <span className="text-xs text-muted-foreground">Contests Joined</span>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingActivities ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : activities.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No recent activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {activities.map(activity => (
+                      <ActivityCard key={activity.id} activity={activity} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Stats</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Global Rank</span>
+                  <Badge variant="outline">{stats.rank}</Badge>
+                </div>
+                <Separator />
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Challenges Completed</span>
+                  <Badge variant="outline">{stats.challengesCompleted}</Badge>
+                </div>
+                <Separator />
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Contests Participated</span>
+                  <Badge variant="outline">{stats.contestsParticipated}</Badge>
+                </div>
+                <Separator />
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Badges Earned</span>
+                  <Badge variant="outline">{badges.length}</Badge>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <Button className="shrink-0">
-            <Download className="h-4 w-4 mr-2" />
-            Export Resume
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
