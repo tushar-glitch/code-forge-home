@@ -18,8 +18,7 @@ import InterviewWorkspace from "./pages/InterviewWorkspace";
 import ProjectPreview from "./pages/ProjectPreview";
 import ProjectManagement from "./pages/dashboard/ProjectManagement";
 import GetStarted from "./pages/GetStarted";
-import CandidateDashboard from "./pages/CandidateDashboard";
-import CandidateDashboard2 from "./pages/candidate/CandidateDashboard2";
+import CandidateDashboard from "./pages/candidate/CandidateDashboard";
 import ChallengesPage from "./pages/candidate/ChallengesPage";
 import ContestsPage from "./pages/candidate/ContestsPage";
 import LeaderboardPage from "./pages/candidate/LeaderboardPage";
@@ -80,7 +79,7 @@ const App = () => (
               path="/candidate/dashboard"
               element={
                 <ProtectedRoute allowedRoles={["candidate"]}>
-                  <CandidateDashboard2 />
+                  <CandidateDashboard />
                 </ProtectedRoute>
               }
             />

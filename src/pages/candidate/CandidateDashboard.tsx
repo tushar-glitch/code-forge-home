@@ -29,13 +29,16 @@ import SponsoredBanner from "@/components/candidate/SponsoredBanner";
 import ProfileSummary, { ProfileData } from "@/components/candidate/ProfileSummary";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { TestAssignment, getCandidateAssignments } from "@/lib/test-management-utils";
 
-const CandidateDashboard2 = () => {
+const CandidateDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
   const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState<TestAssignment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [badges, setBadges] = useState<DeveloperBadge[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
@@ -279,6 +282,82 @@ const CandidateDashboard2 = () => {
     fetchData();
   }, [user]);
 
+  useEffect(() => {
+      const fetchAssignments = async () => {
+        if (!user?.email) return;
+        
+        try {
+          const data = await getCandidateAssignments(user.email);
+          // Type assertion to fix TypeScript error
+          setAssignments(data as unknown as TestAssignment[]);
+        } catch (error) {
+          console.error("Error fetching assignments:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+  
+      fetchAssignments();
+  }, [user?.email]);
+  
+  // Filter assignments by status
+  const pendingAssignments = assignments.filter(a => a.status === "pending");
+  const inProgressAssignments = assignments.filter(a => a.status === "in-progress");
+  const completedAssignments = assignments.filter(a => a.status === "completed");
+
+  const renderAssignmentCard = (assignment: TestAssignment) => {
+    const testTitle = assignment.test?.test_title || "Unnamed Test";
+    const testDuration = assignment.test?.time_limit || 60;
+    const testLanguage = assignment.test?.primary_language || "Not specified";
+    
+    const startedDate = assignment.started_at ? new Date(assignment.started_at) : null;
+    const completedDate = assignment.completed_at ? new Date(assignment.completed_at) : null;
+    
+    return (
+      <Card key={assignment.id} className="mb-4">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{testTitle}</CardTitle>
+            <Badge 
+              variant={
+                assignment.status === "completed" ? "default" : 
+                assignment.status === "in-progress" ? "secondary" : "outline"
+              }
+            >
+              {assignment.status === "pending" ? "Not Started" : 
+               assignment.status === "in-progress" ? "In Progress" : "Completed"}
+            </Badge>
+          </div>
+          <CardDescription>
+            {testDuration} minutes • {testLanguage}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {startedDate && (
+              <div className="text-sm">
+                <span className="font-medium">Started:</span> {format(startedDate, "PPp")}
+              </div>
+            )}
+            {completedDate && (
+              <div className="text-sm">
+                <span className="font-medium">Completed:</span> {format(completedDate, "PPp")}
+              </div>
+            )}
+            <Button 
+              onClick={() => navigate(`/interview/${assignment.id}`)}
+              variant={assignment.status === "completed" ? "outline" : "default"}
+              disabled={assignment.status === "completed"}
+            >
+              {assignment.status === "pending" ? "Start Test" : 
+               assignment.status === "in-progress" ? "Continue Test" : "View Submission"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -341,52 +420,60 @@ const CandidateDashboard2 = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="pending">
-                  <TabsList className="mb-6">
-                    <TabsTrigger value="pending">Not Started</TabsTrigger>
-                    <TabsTrigger value="in-progress">In Progress</TabsTrigger>
-                    <TabsTrigger value="completed">Completed</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="pending">
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No pending assessments</p>
-                      <Button 
-                        variant="outline" 
-                        className="mt-4"
-                        onClick={() => navigate('/candidate-dashboard')}
-                      >
-                        Go to Assessments
-                      </Button>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="in-progress">
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No tests in progress</p>
-                      <Button 
-                        variant="outline" 
-                        className="mt-4"
-                        onClick={() => navigate('/candidate-dashboard')}
-                      >
-                        Go to Assessments
-                      </Button>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="completed">
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No completed tests</p>
-                      <Button 
-                        variant="outline" 
-                        className="mt-4"
-                        onClick={() => navigate('/candidate-dashboard')}
-                      >
-                        Go to Assessments
-                      </Button>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                <Tabs defaultValue={assignments.length > 0 ? (pendingAssignments.length > 0 ? "pending" : inProgressAssignments.length > 0 ? "in-progress" : "completed") : "pending"}>
+                        <TabsList className="mb-6">
+                          <TabsTrigger value="pending">
+                            Not Started ({pendingAssignments.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="in-progress">
+                            In Progress ({inProgressAssignments.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="completed">
+                            Completed ({completedAssignments.length})
+                          </TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="pending">
+                          {pendingAssignments.length > 0 ? (
+                            pendingAssignments.map(renderAssignmentCard)
+                          ) : (
+                            <div className="text-center py-8">
+                              <p className="text-muted-foreground">No pending assignments</p>
+                            </div>
+                          )}
+                        </TabsContent>
+                        
+                        <TabsContent value="in-progress">
+                          {inProgressAssignments.length > 0 ? (
+                            inProgressAssignments.map(renderAssignmentCard)
+                          ) : (
+                            <div className="text-center py-8">
+                              <p className="text-muted-foreground">No tests in progress</p>
+                            </div>
+                          )}
+                        </TabsContent>
+                        
+                        <TabsContent value="completed">
+                          {completedAssignments.length > 0 ? (
+                            completedAssignments.map(renderAssignmentCard)
+                          ) : (
+                            <div className="text-center py-8">
+                              <p className="text-muted-foreground">No completed tests</p>
+                            </div>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                      
+                      {assignments.length === 0 && (
+                        <div className="my-12 text-center">
+                          <h2 className="text-2xl font-semibold mb-2">No Tests Assigned Yet</h2>
+                          <p className="text-muted-foreground mb-6">
+                            You don't have any tests assigned to you at the moment.
+                            <br />
+                            Check back later or contact your recruiter.
+                          </p>
+                        </div>
+                      )}
               </CardContent>
             </Card>
             
@@ -701,4 +788,4 @@ const CandidateDashboard2 = () => {
   );
 };
 
-export default CandidateDashboard2;
+export default CandidateDashboard;
