@@ -6,7 +6,6 @@ import {
   SandpackLayout,
   SandpackCodeEditor,
   SandpackPreview,
-  SandpackFileExplorer,
   SandpackConsole,
 } from "@codesandbox/sandpack-react";
 import { atomDark } from "@codesandbox/sandpack-themes";
@@ -15,6 +14,7 @@ import { Loader2, Bot, Code2, MessageSquare, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { SandpackFileExplorer } from "sandpack-file-explorer";
 import {
   getAssignmentDetails,
   updateAssignmentStatus,
@@ -312,7 +312,7 @@ const InterviewWorkspace = () => {
       {/* Main Content - Split into two sections */}
       <div className="flex-1 flex flex-col">
         {/* Sandpack Editor - Top Half */}
-        <div className="h-1/2 min-h-0 overflow-hidden">
+        {/* <div className="h-1/2 min-h-0 overflow-hidden"> */}
           <SandpackProvider
             theme={atomDark}
             files={projectFiles}
@@ -325,33 +325,57 @@ const InterviewWorkspace = () => {
             }}
             autorun
           >
-            <SandpackLayout className="h-full">
-              <SandpackFileExplorer className="h-full" />
-              <SandpackCodeEditor
-                showLineNumbers={true}
-                showInlineErrors
-                showTabs
-                wrapContent
-                closableTabs
-                className="flex-1 h-full"
-              />
+            <SandpackLayout>
+              <div
+                style={{
+                  display: "flex",
+                  width: "100%",
+                  minHeight: "300px",
+                  maxHeight: "300px",
+                  backgroundColor: `var(--sp-colors-surface1)`,
+                }}
+              >
+                <div
+                  style={{
+                    minWidth: 150,
+                    maxWidth: "300px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <SandpackFileExplorer />
+                </div>
+                <div style={{ flex: "min-content" }}>
+                  <SandpackCodeEditor
+                    showLineNumbers={true}
+                    style={{
+                      minHeight: "100%",
+                      maxHeight: "100%",
+                      overflow: "auto",
+                    }}
+                    showInlineErrors
+                    showTabs
+                    wrapContent
+                    closableTabs
+                    className="flex-1 h-full"
+                  />
+                </div>
+              </div>
               <SandpackPreview
                 showNavigator={true}
                 showRefreshButton
                 showOpenInCodeSandbox={false}
-                className="flex-1 h-full"
               />
-              <SandpackConsole
-                className="h-48 overflow-auto bg-black text-white p-2 text-sm"
+              {/* <SandpackConsole
+                // className="h-48 overflow-auto bg-black text-white p-2 text-sm"
                 standalone={false}
                 showHeader={false}
-              />
+              /> */}
             </SandpackLayout>
           </SandpackProvider>
-        </div>
+        {/* </div> */}
 
         {/* AI Interviewer - Bottom Half (Coming Soon) */}
-        <div className="h-1/2 border-t border-border bg-muted/30 p-6">
+        {/* <div className="h-1/2 border-t border-border bg-muted/30 p-6">
           <div className="h-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 bg-background/50">
             <div className="text-center max-w-md p-6">
               <Bot className="w-16 h-16 mx-auto mb-4 text-primary/60" />
@@ -379,7 +403,7 @@ const InterviewWorkspace = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );
