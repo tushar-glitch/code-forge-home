@@ -1,6 +1,11 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -8,607 +13,408 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Trophy, Users, Star, Filter, Medal, Calendar } from "lucide-react";
-import { LeaderboardUser } from "@/components/candidate/LeaderboardEntry";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import BadgeDisplay, { DeveloperBadge } from "@/components/candidate/BadgeDisplay";
+import { Search, Trophy, Star, Users, LayoutDashboard, Loader2 } from "lucide-react";
+import CandidateNavbar from "@/components/candidate/CandidateNavbar";
+import LeaderboardEntry, { LeaderboardUser } from "@/components/candidate/LeaderboardEntry";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
-// Sample data
-const dummyBadges: Record<string, DeveloperBadge> = {
-  "bug_hunter": {
-    id: "1",
-    name: "Bug Hunter",
-    icon: "🐞",
-    description: "Found and fixed 10 bugs in challenges",
-    rarity: "common"
-  },
-  "code_ninja": {
-    id: "2",
-    name: "Code Ninja",
-    icon: "🥷",
-    description: "Completed 5 advanced challenges",
-    rarity: "rare"
-  },
-  "performance_guru": {
-    id: "3",
-    name: "Performance Guru",
-    icon: "⚡",
-    description: "Optimized a React app to improve performance by 50%",
-    rarity: "epic"
-  },
-  "design_star": {
-    id: "4",
-    name: "Design Star",
-    icon: "🎨",
-    description: "Created beautifully designed UI components",
-    rarity: "rare"
-  },
-  "database_expert": {
-    id: "5",
-    name: "Database Expert",
-    icon: "🗄️",
-    description: "Mastered complex database optimizations",
-    rarity: "rare"
-  },
-  "team_player": {
-    id: "6",
-    name: "Team Player",
-    icon: "👥",
-    description: "Successfully collaborated on group challenges",
-    rarity: "common"
-  },
-  "speed_demon": {
-    id: "7",
-    name: "Speed Demon",
-    icon: "⚡",
-    description: "Completed challenges in record time",
-    rarity: "uncommon"
-  },
-  "bug_bounty_hunter": {
-    id: "8",
-    name: "Bug Bounty Hunter",
-    icon: "🔍",
-    description: "Found critical security vulnerabilities",
-    rarity: "epic"
-  },
-  "algorithm_master": {
-    id: "9",
-    name: "Algorithm Master",
-    icon: "🧮",
-    description: "Solved complex algorithmic challenges",
-    rarity: "legendary"
-  },
-  "full_stack_wizard": {
-    id: "10",
-    name: "Full Stack Wizard",
-    icon: "🧙",
-    description: "Demonstrated excellence in both frontend and backend",
-    rarity: "legendary"
-  }
-};
-
-const dummyLeaderboard: LeaderboardUser[] = [
-  {
-    id: "1",
-    username: "reactninja",
-    avatarUrl: "",
-    score: 2450,
-    rank: 1,
-    badges: ["bug_hunter", "code_ninja", "performance_guru"],
-    skillTags: ["React", "TypeScript", "Next.js"]
-  },
-  {
-    id: "2",
-    username: "devmaster",
-    avatarUrl: "",
-    score: 2330,
-    rank: 2,
-    badges: ["bug_hunter", "code_ninja", "algorithm_master"],
-    skillTags: ["JavaScript", "React", "Node.js"]
-  },
-  {
-    id: "3",
-    username: "codewizard",
-    avatarUrl: "",
-    score: 2120,
-    rank: 3,
-    badges: ["bug_hunter", "performance_guru"],
-    skillTags: ["Angular", "TypeScript", "RxJS"]
-  },
-  {
-    id: "4",
-    username: "javascriptguru",
-    avatarUrl: "",
-    score: 2050,
-    rank: 4,
-    badges: ["bug_hunter", "algorithm_master"],
-    skillTags: ["JavaScript", "Vue.js", "Express"]
-  },
-  {
-    id: "5",
-    username: "typescriptpro",
-    avatarUrl: "",
-    score: 1950,
-    rank: 5,
-    badges: ["bug_hunter", "full_stack_wizard"],
-    skillTags: ["TypeScript", "React", "GraphQL"]
-  },
-  {
-    id: "6",
-    username: "uimagician",
-    avatarUrl: "",
-    score: 1895,
-    rank: 6,
-    badges: ["design_star", "speed_demon"],
-    skillTags: ["CSS", "UI/UX", "Animation"]
-  },
-  {
-    id: "7",
-    username: "backendninja",
-    avatarUrl: "",
-    score: 1880,
-    rank: 7,
-    badges: ["database_expert", "bug_bounty_hunter"],
-    skillTags: ["Node.js", "MongoDB", "Express"]
-  },
-  {
-    id: "8",
-    username: "fullstackdev",
-    avatarUrl: "",
-    score: 1765,
-    rank: 8,
-    badges: ["team_player", "full_stack_wizard"],
-    skillTags: ["React", "Node.js", "MongoDB"]
-  },
-  {
-    id: "9",
-    username: "performanceking",
-    avatarUrl: "",
-    score: 1742,
-    rank: 9,
-    badges: ["speed_demon", "performance_guru"],
-    skillTags: ["Optimization", "Algorithms", "JavaScript"]
-  },
-  {
-    id: "10",
-    username: "securityexpert",
-    avatarUrl: "",
-    score: 1720,
-    rank: 10,
-    badges: ["bug_bounty_hunter", "team_player"],
-    skillTags: ["Security", "Penetration Testing", "Authentication"]
-  },
-  {
-    id: "11",
-    username: "mobilemaster",
-    avatarUrl: "",
-    score: 1694,
-    rank: 11,
-    badges: ["design_star", "speed_demon"],
-    skillTags: ["React Native", "Flutter", "Mobile UI"]
-  },
-  {
-    id: "12",
-    username: "datasciencepro",
-    avatarUrl: "",
-    score: 1680,
-    rank: 12,
-    badges: ["algorithm_master", "database_expert"],
-    skillTags: ["Python", "Data Visualization", "Machine Learning"]
-  },
-  {
-    id: "13",
-    username: "cloudninja",
-    avatarUrl: "",
-    score: 1655,
-    rank: 13,
-    badges: ["team_player", "bug_hunter"],
-    skillTags: ["AWS", "DevOps", "Infrastructure"]
-  },
-  {
-    id: "14",
-    username: "testingwizard",
-    avatarUrl: "",
-    score: 1632,
-    rank: 14,
-    badges: ["bug_bounty_hunter", "bug_hunter"],
-    skillTags: ["Testing", "QA Automation", "Jest"]
-  },
-  {
-    id: "15",
-    username: "algorithmguru",
-    avatarUrl: "",
-    score: 1620,
-    rank: 15,
-    badges: ["algorithm_master", "speed_demon"],
-    skillTags: ["Algorithms", "Data Structures", "Problem Solving"]
-  },
-  {
-    id: "42",
-    username: "yourcoolname",
-    avatarUrl: "",
-    score: 1250,
-    rank: 27,
-    badges: ["bug_hunter", "team_player"],
-    skillTags: ["React", "JavaScript", "CSS"]
-  },
-];
-
-interface FilterState {
-  search: string;
-  skill: string;
-  period: string;
-}
+type TimeFrame = "all" | "month" | "week";
+type SkillFilter = "all" | string;
 
 const LeaderboardPage = () => {
-  const [currentTab, setCurrentTab] = useState<'global' | 'challenges' | 'contests'>('global');
-  const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    skill: '',
-    period: 'all-time'
-  });
-  const [selectedUser, setSelectedUser] = useState<LeaderboardUser | null>(null);
-  const currentUser = dummyLeaderboard.find(u => u.username === "yourcoolname") || null;
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<LeaderboardUser | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredLeaderboard, setFilteredLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>("all");
+  const [skillFilter, setSkillFilter] = useState<SkillFilter>("all");
+  const [availableSkills, setAvailableSkills] = useState<string[]>([]);
   
-  // Extract all unique skills
-  const allSkills = Array.from(
-    new Set(dummyLeaderboard.flatMap(user => user.skillTags))
-  ).sort();
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        // Fetch all developer profiles ordered by XP
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('developer_profiles')
+          .select('id, username, xp_points, level, avatar_url')
+          .order('xp_points', { ascending: false })
+          .limit(50);
+          
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+          return;
+        }
+        
+        // Collect all skills for filtering
+        const skillsSet = new Set<string>();
+        
+        // Process and transform profiles to leaderboard format
+        if (profilesData) {
+          const processedLeaderboard = await Promise.all(profilesData.map(async (profile, index) => {
+            // Fetch user badges
+            const { data: userBadges, error: badgesError } = await supabase
+              .from('user_badges')
+              .select('badge_id, developer_badges!inner(name, rarity)')
+              .eq('user_id', profile.id);
+              
+            // Fetch user skills
+            const { data: userSkills, error: skillsError } = await supabase
+              .from('user_skills')
+              .select('skill')
+              .eq('user_id', profile.id);
+              
+            // Add skills to the set for filtering
+            if (userSkills) {
+              userSkills.forEach(s => skillsSet.add(s.skill));
+            }
+            
+            const leaderboardUser: LeaderboardUser = {
+              id: profile.id,
+              username: profile.username,
+              avatarUrl: profile.avatar_url || undefined,
+              score: profile.xp_points,
+              rank: index + 1,
+              badges: userBadges ? userBadges.map(b => b.developer_badges.name) : [],
+              skillTags: userSkills ? userSkills.map(s => s.skill) : []
+            };
+            
+            // Check if this is the current user
+            if (user && profile.id === user.id) {
+              setCurrentUser(leaderboardUser);
+            }
+            
+            return leaderboardUser;
+          }));
+          
+          setLeaderboard(processedLeaderboard);
+          setAvailableSkills(Array.from(skillsSet));
+          
+          // If current user wasn't found in the top 50, fetch separately
+          if (user && !profilesData.some(p => p.id === user.id)) {
+            const { data: userProfile, error: userError } = await supabase
+              .from('developer_profiles')
+              .select('id, username, xp_points, level, avatar_url')
+              .eq('id', user.id)
+              .single();
+              
+            if (!userError && userProfile) {
+              // Count users with higher score
+              const { count, error: countError } = await supabase
+                .from('developer_profiles')
+                .select('*', { count: 'exact', head: true })
+                .gt('xp_points', userProfile.xp_points);
+                
+              // Fetch user badges
+              const { data: userBadges } = await supabase
+                .from('user_badges')
+                .select('badge_id, developer_badges!inner(name)')
+                .eq('user_id', user.id);
+                
+              // Fetch user skills
+              const { data: userSkills } = await supabase
+                .from('user_skills')
+                .select('skill')
+                .eq('user_id', user.id);
+                
+              setCurrentUser({
+                id: userProfile.id,
+                username: userProfile.username,
+                avatarUrl: userProfile.avatar_url || undefined,
+                score: userProfile.xp_points,
+                rank: (count || 0) + 1,
+                badges: userBadges ? userBadges.map(b => b.developer_badges.name) : [],
+                skillTags: userSkills ? userSkills.map(s => s.skill) : []
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLeaderboard();
+  }, [user]);
   
-  // Filter users based on filters
-  const filteredLeaderboard = dummyLeaderboard.filter(user => {
-    // Search filter
-    if (filters.search && !user.username.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
+  // Apply filters whenever they change
+  useEffect(() => {
+    let result = [...leaderboard];
+    
+    // Apply skill filter
+    if (skillFilter !== "all") {
+      result = result.filter(user => 
+        user.skillTags.some(s => s === skillFilter)
+      );
     }
     
-    // Skill filter
-    if (filters.skill && !user.skillTags.includes(filters.skill)) {
-      return false;
-    }
-    
-    // We would normally filter by period here using timestamps
-    // but for this demo we'll just include all users
-    
-    return true;
-  });
-  
-  const handleFilterChange = (key: keyof FilterState, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-  
-  const resetFilters = () => {
-    setFilters({
-      search: '',
-      skill: '',
-      period: 'all-time'
-    });
-  };
-  
-  // Get formatted rank display with medal icons for top 3
-  const getRankDisplay = (rank: number) => {
-    if (rank === 1) {
-      return (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white">
-          <Trophy className="h-4 w-4" />
-        </div>
-      );
-    } else if (rank === 2) {
-      return (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-400 text-white">
-          <Medal className="h-4 w-4" />
-        </div>
-      );
-    } else if (rank === 3) {
-      return (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-700 text-white">
-          <Medal className="h-4 w-4" />
-        </div>
-      );
-    } else {
-      return (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-foreground">
-          <span className="text-sm font-bold">{rank}</span>
-        </div>
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(user => 
+        user.username.toLowerCase().includes(query)
       );
     }
-  };
+    
+    // For time filter, we would need actual timestamp data
+    // This is a placeholder for future implementation
+    if (timeFrame !== "all") {
+      // Filter by time frame would be implemented here
+      // For now, we'll just use the same data
+    }
+    
+    setFilteredLeaderboard(result);
+  }, [leaderboard, skillFilter, searchQuery, timeFrame]);
   
-  return (
-    <div className="container max-w-7xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
-        <p className="text-muted-foreground">
-          See how you stack up against other developers in the community
-        </p>
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <CandidateNavbar />
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <CandidateNavbar />
       
-      <div className="mb-8">
-        <Tabs 
-          defaultValue="global" 
-          onValueChange={(value) => setCurrentTab(value as 'global' | 'challenges' | 'contests')}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <TabsList>
-              <TabsTrigger value="global" className="flex items-center gap-2">
-                <Trophy className="h-4 w-4" />
-                Global Rankings
-              </TabsTrigger>
-              <TabsTrigger value="challenges" className="flex items-center gap-2">
-                <Star className="h-4 w-4" />
-                By Challenge
-              </TabsTrigger>
-              <TabsTrigger value="contests" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                By Contest
-              </TabsTrigger>
-            </TabsList>
-            
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select
-                value={filters.period}
-                onValueChange={(value) => handleFilterChange('period', value)}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Time Period" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all-time">All Time</SelectItem>
-                  <SelectItem value="this-month">This Month</SelectItem>
-                  <SelectItem value="this-week">This Week</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <div className="container max-w-7xl mx-auto py-8 px-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Leaderboard</h1>
+            <p className="text-muted-foreground mt-1">
+              See how you rank against other developers
+            </p>
           </div>
           
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search users..."
-                className="pl-10"
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-              />
+          <Button
+            onClick={() => window.history.back()}
+            className="gap-2"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </Button>
+        </div>
+        
+        {/* Top Winners Card */}
+        <Card className="mb-8 overflow-hidden">
+          <div className="relative h-32 bg-gradient-to-r from-primary to-primary/60">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Trophy className="h-16 w-16 text-primary-foreground/80" />
             </div>
-            
-            <Select
-              value={filters.skill}
-              onValueChange={(value) => handleFilterChange('skill', value)}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by Skill" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Skills</SelectItem>
-                {allSkills.map(skill => (
-                  <SelectItem key={skill} value={skill}>{skill}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Button variant="ghost" size="sm" onClick={resetFilters}>
-              Reset
-            </Button>
           </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-center">Top Developers</CardTitle>
+            <CardDescription className="text-center">
+              Our highest ranked community members
+            </CardDescription>
+          </CardHeader>
           
-          <TabsContent value="global" className="space-y-6 mt-0">
-            {/* Top 3 Users - Desktop View */}
-            <div className="hidden md:flex gap-4">
-              {filteredLeaderboard.slice(0, 3).map((user, index) => (
-                <Card key={user.id} className={`flex-1 overflow-hidden ${index === 0 ? 'bg-gradient-to-b from-amber-500/10 to-transparent border-amber-500/30' : ''}`}>
-                  <CardHeader className="text-center pb-0">
-                    <div className={`mx-auto p-2 rounded-full ${
-                      index === 0 ? "bg-amber-500" : 
-                      index === 1 ? "bg-slate-400" : 
-                      "bg-amber-700"
-                    } text-white`}>
-                      <Trophy className="h-6 w-6" />
-                    </div>
-                    <div className="mt-2">
-                      <Badge variant="outline" className="font-bold">
-                        Rank #{user.rank}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="text-center pt-4">
-                    <Avatar className={`h-20 w-20 mx-auto border-4 ${
-                      index === 0 ? "border-amber-500" : 
-                      index === 1 ? "border-slate-400" : 
-                      "border-amber-700"
-                    }`}>
-                      <AvatarImage src={user.avatarUrl} />
-                      <AvatarFallback className="text-xl font-bold">
-                        {user.username.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <h3 className="text-xl font-bold mt-3">{user.username}</h3>
-                    <p className="text-2xl font-bold mt-2 text-primary">{user.score} points</p>
-                    
-                    <div className="flex flex-wrap justify-center gap-1 mt-3">
-                      {user.skillTags.slice(0, 3).map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    
-                    <div className="flex justify-center gap-1 mt-4">
-                      {user.badges.slice(0, 3).map(badgeId => (
-                        <BadgeDisplay 
-                          key={badgeId} 
-                          badge={dummyBadges[badgeId]} 
-                          size="sm" 
-                        />
-                      ))}
-                    </div>
-                    
-                    <Button variant="outline" className="mt-4" onClick={() => setSelectedUser(user)}>
-                      View Profile
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            
-            {/* Main Leaderboard Table */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Global Rankings</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="space-y-1">
-                  {filteredLeaderboard.map(user => {
-                    const isCurrentUser = user.id === currentUser?.id;
-                    
-                    return (
-                      <div 
-                        key={user.id} 
-                        className={`flex items-center gap-4 p-3 hover:bg-muted/50 cursor-pointer transition-colors ${
-                          isCurrentUser ? 'border-l-4 border-primary bg-primary/5' : ''
-                        }`}
-                        onClick={() => setSelectedUser(user)}
-                      >
-                        <div className="flex-shrink-0">
-                          {getRankDisplay(user.rank)}
-                        </div>
-                        
-                        <Avatar className="h-10 w-10 border border-muted">
-                          <AvatarImage src={user.avatarUrl} />
-                          <AvatarFallback>
-                            {user.username.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center">
-                            <span className="font-medium">{user.username}</span>
-                            {isCurrentUser && (
-                              <Badge className="ml-2 text-xs" variant="secondary">You</Badge>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {user.skillTags.slice(0, 2).map(tag => (
-                              <Badge key={tag} variant="outline" className="text-[10px] py-0 px-1">
-                                {tag}
-                              </Badge>
-                            ))}
-                            {user.skillTags.length > 2 && (
-                              <span className="text-[10px] text-muted-foreground">
-                                +{user.skillTags.length - 2} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-1.5 mr-2">
-                          {user.badges.slice(0, 3).map(badgeId => (
-                            <div key={badgeId} className="w-5 h-5 bg-muted rounded-full flex items-center justify-center text-xs overflow-hidden">
-                              {dummyBadges[badgeId]?.icon || '🏆'}
-                            </div>
-                          ))}
-                          {user.badges.length > 3 && (
-                            <div className="w-5 h-5 bg-muted rounded-full flex items-center justify-center text-[8px] font-medium">
-                              +{user.badges.length - 3}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="font-bold text-primary">{user.score}</div>
-                          <div className="text-xs text-muted-foreground">points</div>
-                        </div>
+          {leaderboard.length === 0 ? (
+            <CardContent className="text-center py-6">
+              <p className="text-mute-foreground">No leaderboard data available</p>
+            </CardContent>
+          ) : (
+            <CardContent className="py-6">
+              <div className="flex flex-col md:flex-row justify-center items-center gap-6 md:gap-12">
+                {/* Second Place */}
+                {leaderboard.length > 1 && (
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                        2
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Your Position */}
-            {currentUser && (
-              <Card className="border-primary/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Your Position</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0">
-                      {getRankDisplay(currentUser.rank)}
-                    </div>
-                    
-                    <Avatar className="h-10 w-10 border-2 border-primary">
-                      <AvatarImage src={currentUser.avatarUrl} />
-                      <AvatarFallback>
-                        {currentUser.username.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <div className="flex-1">
-                      <div className="font-bold">{currentUser.username}</div>
-                      <div className="text-muted-foreground text-sm">
-                        {currentUser.score} points
+                      <div className="h-20 w-20 rounded-full bg-muted overflow-hidden border-4 border-slate-400">
+                        {leaderboard[1].avatarUrl ? (
+                          <img
+                            src={leaderboard[1].avatarUrl}
+                            alt={leaderboard[1].username}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground text-lg font-bold">
+                            {leaderboard[1].username.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    
-                    <div>
-                      <Button size="sm" onClick={() => setSelectedUser(currentUser)}>
-                        View Your Profile
-                      </Button>
+                    <h3 className="font-medium mt-2">{leaderboard[1].username}</h3>
+                    <div className="flex items-center gap-1 text-sm">
+                      <Star className="h-4 w-4 text-slate-400" />
+                      <span>{leaderboard[1].score} XP</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                )}
+                
+                {/* First Place */}
+                {leaderboard.length > 0 && (
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                        1
+                      </div>
+                      <div className="h-24 w-24 rounded-full bg-muted overflow-hidden border-4 border-amber-500">
+                        {leaderboard[0].avatarUrl ? (
+                          <img
+                            src={leaderboard[0].avatarUrl}
+                            alt={leaderboard[0].username}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground text-xl font-bold">
+                            {leaderboard[0].username.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <h3 className="font-medium mt-2">{leaderboard[0].username}</h3>
+                    <div className="flex items-center gap-1 text-sm">
+                      <Star className="h-4 w-4 text-amber-500" />
+                      <span>{leaderboard[0].score} XP</span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Third Place */}
+                {leaderboard.length > 2 && (
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                        3
+                      </div>
+                      <div className="h-20 w-20 rounded-full bg-muted overflow-hidden border-4 border-amber-700">
+                        {leaderboard[2].avatarUrl ? (
+                          <img
+                            src={leaderboard[2].avatarUrl}
+                            alt={leaderboard[2].username}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground text-lg font-bold">
+                            {leaderboard[2].username.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <h3 className="font-medium mt-2">{leaderboard[2].username}</h3>
+                    <div className="flex items-center gap-1 text-sm">
+                      <Star className="h-4 w-4 text-amber-700" />
+                      <span>{leaderboard[2].score} XP</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+        
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search developers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select
+            value={skillFilter}
+            onValueChange={(value) => setSkillFilter(value)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter by skill" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Skills</SelectItem>
+              {availableSkills.map((skill) => (
+                <SelectItem key={skill} value={skill}>
+                  {skill}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Tabs
+            value={timeFrame}
+            onValueChange={(value) => setTimeFrame(value as TimeFrame)}
+            className="w-full sm:w-auto"
+          >
+            <TabsList>
+              <TabsTrigger value="all">All Time</TabsTrigger>
+              <TabsTrigger value="month">This Month</TabsTrigger>
+              <TabsTrigger value="week">This Week</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        
+        {/* Main Leaderboard */}
+        <Card className="mb-8">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Developer Rankings
+            </CardTitle>
+            <CardDescription>
+              Based on challenge performance, contests, and contributions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredLeaderboard.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  {searchQuery || skillFilter !== "all" 
+                    ? "No developers match your filters"
+                    : "No leaderboard data available"}
+                </p>
+                {(searchQuery || skillFilter !== "all") && (
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSkillFilter("all");
+                    }}
+                  >
+                    Reset Filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredLeaderboard.map(user => (
+                  <LeaderboardEntry 
+                    key={user.id} 
+                    user={user}
+                    highlighted={user.id === currentUser?.id}
+                  />
+                ))}
+              </div>
             )}
-          </TabsContent>
-          
-          <TabsContent value="challenges">
-            <div className="text-center py-12 bg-muted/20 rounded-lg">
-              <Star className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-1">Challenge-specific leaderboards</h3>
-              <p className="text-muted-foreground mb-4">
-                Select a specific challenge to see rankings by performance
-              </p>
-              <Select>
-                <SelectTrigger className="w-[240px] mx-auto">
-                  <SelectValue placeholder="Select a challenge" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="react">React Performance Challenge</SelectItem>
-                  <SelectItem value="css">CSS Animation Challenge</SelectItem>
-                  <SelectItem value="algo">Algorithm Optimization Contest</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="contests">
-            <div className="text-center py-12 bg-muted/20 rounded-lg">
-              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-1">Contest-specific leaderboards</h3>
-              <p className="text-muted-foreground mb-4">
-                Select a specific contest to see its leaderboard
-              </p>
-              <Select>
-                <SelectTrigger className="w-[240px] mx-auto">
-                  <SelectValue placeholder="Select a contest" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="frontend">Frontend Masters Challenge</SelectItem>
-                  <SelectItem value="bug">Bug Hunting Challenge</SelectItem>
-                  <SelectItem value="fullstack">Full Stack Challenge</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </TabsContent>
-        </Tabs>
+          </CardContent>
+        </Card>
+        
+        {/* Current User Card */}
+        {currentUser && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold mb-4">Your Ranking</h2>
+            <Card>
+              <CardContent className="p-4">
+                <LeaderboardEntry
+                  user={currentUser}
+                  highlighted={true}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,12 +1,13 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface DeveloperBadge {
   id: string;
   name: string;
-  icon: string; // URL to badge icon
+  icon: string; // URL to badge icon or emoji
   description: string;
   rarity: "common" | "uncommon" | "rare" | "epic" | "legendary";
 }
@@ -14,9 +15,48 @@ export interface DeveloperBadge {
 interface BadgeDisplayProps {
   badge: DeveloperBadge;
   size?: "sm" | "md" | "lg";
+  userId?: string;
+  badgeId?: string;
 }
 
-const BadgeDisplay: React.FC<BadgeDisplayProps> = ({ badge, size = "md" }) => {
+const BadgeDisplay: React.FC<BadgeDisplayProps> = ({ 
+  badge: initialBadge, 
+  size = "md", 
+  userId,
+  badgeId 
+}) => {
+  const [badge, setBadge] = useState<DeveloperBadge | null>(initialBadge || null);
+  const [loading, setLoading] = useState(!!userId && !!badgeId && !initialBadge);
+  
+  useEffect(() => {
+    if (userId && badgeId && !initialBadge) {
+      const fetchBadge = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('developer_badges')
+            .select('*')
+            .eq('id', badgeId)
+            .single();
+            
+          if (error) {
+            console.error('Error fetching badge:', error);
+            return;
+          }
+          
+          if (data) {
+            setBadge(data as DeveloperBadge);
+          }
+        } catch (error) {
+          console.error('Error in badge display:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchBadge();
+    }
+  }, [userId, badgeId, initialBadge]);
+
   const badgeColors = {
     common: "bg-slate-600 hover:bg-slate-500",
     uncommon: "bg-green-600 hover:bg-green-500",
@@ -31,6 +71,16 @@ const BadgeDisplay: React.FC<BadgeDisplayProps> = ({ badge, size = "md" }) => {
     lg: "w-16 h-16",
   };
 
+  if (loading) {
+    return (
+      <div className={`relative flex-shrink-0 ${sizeClasses[size]} animate-pulse bg-muted rounded-full`}></div>
+    );
+  }
+
+  if (!badge) {
+    return null;
+  }
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -39,7 +89,9 @@ const BadgeDisplay: React.FC<BadgeDisplayProps> = ({ badge, size = "md" }) => {
             <div className={`absolute inset-0 rounded-full ${badgeColors[badge.rarity]} opacity-20`}></div>
             <div className="flex h-full w-full items-center justify-center rounded-full bg-card">
               {badge.icon ? (
-                <img src={badge.icon} alt={badge.name} className="h-2/3 w-2/3 object-contain" />
+                badge.icon.startsWith('http') ? 
+                  <img src={badge.icon} alt={badge.name} className="h-2/3 w-2/3 object-contain" /> :
+                  <span className="text-lg">{badge.icon}</span>
               ) : (
                 <span className="text-xs font-semibold">{badge.name.substring(0, 2)}</span>
               )}

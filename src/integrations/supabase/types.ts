@@ -44,6 +44,88 @@ export type Database = {
           },
         ]
       }
+      challenge_attempts: {
+        Row: {
+          challenge_id: string
+          completed_at: string | null
+          id: string
+          score: number | null
+          started_at: string
+          status: string
+          submission_content: Json | null
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed_at?: string | null
+          id?: string
+          score?: number | null
+          started_at?: string
+          status: string
+          submission_content?: Json | null
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed_at?: string | null
+          id?: string
+          score?: number | null
+          started_at?: string
+          status?: string
+          submission_content?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_attempts_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenges: {
+        Row: {
+          created_at: string
+          description: string
+          difficulty: string
+          id: string
+          is_active: boolean
+          project_id: number | null
+          tags: string[]
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          difficulty: string
+          id?: string
+          is_active?: boolean
+          project_id?: number | null
+          tags: string[]
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          difficulty?: string
+          id?: string
+          is_active?: boolean
+          project_id?: number | null
+          tags?: string[]
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenges_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "code_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       code_projects: {
         Row: {
           created_at: string
@@ -86,6 +168,172 @@ export type Database = {
           email?: string | null
           id?: number
           name?: string
+        }
+        Relationships: []
+      }
+      contest_participants: {
+        Row: {
+          contest_id: string
+          id: string
+          joined_at: string
+          rank: number | null
+          score: number | null
+          submission_content: Json | null
+          user_id: string
+        }
+        Insert: {
+          contest_id: string
+          id?: string
+          joined_at?: string
+          rank?: number | null
+          score?: number | null
+          submission_content?: Json | null
+          user_id: string
+        }
+        Update: {
+          contest_id?: string
+          id?: string
+          joined_at?: string
+          rank?: number | null
+          score?: number | null
+          submission_content?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_participants_contest_id_fkey"
+            columns: ["contest_id"]
+            isOneToOne: false
+            referencedRelation: "contests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contests: {
+        Row: {
+          created_at: string
+          description: string
+          end_date: string
+          id: string
+          prize: string | null
+          project_id: number | null
+          skills: string[]
+          sponsor_logo: string | null
+          sponsor_name: string | null
+          start_date: string
+          status: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          end_date: string
+          id?: string
+          prize?: string | null
+          project_id?: number | null
+          skills: string[]
+          sponsor_logo?: string | null
+          sponsor_name?: string | null
+          start_date: string
+          status: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          end_date?: string
+          id?: string
+          prize?: string | null
+          project_id?: number | null
+          skills?: string[]
+          sponsor_logo?: string | null
+          sponsor_name?: string | null
+          start_date?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "code_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      developer_badges: {
+        Row: {
+          created_at: string
+          description: string
+          icon: string
+          id: string
+          name: string
+          rarity: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          icon: string
+          id?: string
+          name: string
+          rarity: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          icon?: string
+          id?: string
+          name?: string
+          rarity?: string
+        }
+        Relationships: []
+      }
+      developer_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          full_name: string | null
+          github_url: string | null
+          id: string
+          join_date: string
+          level: number
+          linkedin_url: string | null
+          next_level_xp: number
+          updated_at: string
+          username: string
+          xp_points: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          full_name?: string | null
+          github_url?: string | null
+          id: string
+          join_date?: string
+          level?: number
+          linkedin_url?: string | null
+          next_level_xp?: number
+          updated_at?: string
+          username: string
+          xp_points?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          full_name?: string | null
+          github_url?: string | null
+          id?: string
+          join_date?: string
+          level?: number
+          linkedin_url?: string | null
+          next_level_xp?: number
+          updated_at?: string
+          username?: string
+          xp_points?: number
         }
         Relationships: []
       }
@@ -349,6 +597,83 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_activities: {
+        Row: {
+          activity_type: string
+          created_at: string
+          details: Json | null
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "developer_badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_skills: {
+        Row: {
+          id: string
+          level: number
+          skill: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          level?: number
+          skill: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          level?: number
+          skill?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

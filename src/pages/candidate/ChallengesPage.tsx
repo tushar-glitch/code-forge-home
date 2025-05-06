@@ -1,452 +1,376 @@
-
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Search,
-  Filter,
-  ListIcon,
   LayoutGrid,
-  Star,
-  CheckCircle,
-  Calendar,
-  XCircle,
-  Users
+  ListIcon,
+  Search,
+  Loader2,
+  ChevronRight,
+  LayoutDashboard,
 } from "lucide-react";
+import CandidateNavbar from "@/components/candidate/CandidateNavbar";
 import ChallengeCard, { Challenge } from "@/components/candidate/ChallengeCard";
-import SponsoredBanner from "@/components/candidate/SponsoredBanner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
-// Sample data
-const dummyChallenges: Challenge[] = [
-  {
-    id: "1",
-    title: "React Performance Optimization Challenge",
-    description: "Optimize a slow React app to improve rendering performance and reduce unnecessary re-renders",
-    difficulty: "advanced",
-    tags: ["React", "Performance", "Hooks", "Optimization"],
-    solvedCount: 128,
-    totalAttempts: 345,
-    daysActive: 14,
-    topContributors: [
-      { id: "1", username: "reactninja" },
-      { id: "2", username: "devmaster" },
-      { id: "3", username: "codewizard" }
-    ],
-    isCompleted: true
-  },
-  {
-    id: "2",
-    title: "Build a Responsive Dashboard with Tailwind CSS",
-    description: "Create a responsive admin dashboard using Tailwind CSS with dark mode support",
-    difficulty: "intermediate",
-    tags: ["Tailwind CSS", "Responsive Design", "UI/UX"],
-    solvedCount: 245,
-    totalAttempts: 412,
-    daysActive: 21,
-    topContributors: [
-      { id: "1", username: "reactninja" },
-      { id: "4", username: "javascriptguru" },
-      { id: "5", username: "typescriptpro" }
-    ]
-  },
-  {
-    id: "3",
-    title: "Authentication System with Node.js",
-    description: "Build a secure authentication system with JWT, password hashing, and role-based access control",
-    difficulty: "advanced",
-    tags: ["Node.js", "Express", "JWT", "Security"],
-    solvedCount: 87,
-    totalAttempts: 320,
-    daysActive: 30,
-    topContributors: [
-      { id: "2", username: "devmaster" },
-      { id: "6", username: "backenddev" },
-      { id: "7", username: "securityexpert" }
-    ]
-  },
-  {
-    id: "4",
-    title: "Interactive Data Visualization with D3",
-    description: "Create interactive charts and graphs using D3.js to visualize complex datasets",
-    difficulty: "expert",
-    tags: ["D3.js", "Data Visualization", "SVG", "JavaScript"],
-    solvedCount: 56,
-    totalAttempts: 214,
-    daysActive: 45,
-    topContributors: [
-      { id: "8", username: "datavis" },
-      { id: "9", username: "d3master" },
-      { id: "10", username: "chartguru" }
-    ]
-  },
-  {
-    id: "5",
-    title: "React Native Photo Gallery App",
-    description: "Build a mobile photo gallery app with React Native featuring infinite scroll and image caching",
-    difficulty: "intermediate",
-    tags: ["React Native", "Mobile", "Image Processing"],
-    solvedCount: 103,
-    totalAttempts: 287,
-    daysActive: 18,
-    topContributors: [
-      { id: "11", username: "mobilepro" },
-      { id: "12", username: "reactnativeguru" },
-      { id: "1", username: "reactninja" }
-    ]
-  },
-  {
-    id: "6",
-    title: "CSS Animation Challenge",
-    description: "Create complex animations using only CSS without any JavaScript libraries",
-    difficulty: "beginner",
-    tags: ["CSS", "Animation", "UI/UX"],
-    solvedCount: 198,
-    totalAttempts: 321,
-    daysActive: 10,
-    topContributors: [
-      { id: "13", username: "cssninja" },
-      { id: "14", username: "animationpro" },
-      { id: "15", username: "designmaster" }
-    ]
-  },
-];
+// Challenge filter types
+type FilterCategory = "all" | "completed" | "inProgress" | "notStarted";
+type DifficultyLevel = "all" | "beginner" | "intermediate" | "advanced" | "expert";
 
-interface FilterState {
-  search: string;
-  difficulty: string;
-  tag: string;
-  sortBy: string;
-  completed: string;
-}
+const ChallengesPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>("all");
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyLevel>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [filteredChallenges, setFilteredChallenges] = useState<Challenge[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
-const ChallengesPage = () => {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentTab, setCurrentTab] = useState<'all' | 'popular' | 'newest'>('all');
-  const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    difficulty: '',
-    tag: '',
-    sortBy: 'popular',
-    completed: 'all'
-  });
-  
-  // Extract all unique tags from challenges
-  const allTags = Array.from(
-    new Set(dummyChallenges.flatMap(challenge => challenge.tags))
-  ).sort();
-  
-  // Filter challenges based on current filters
-  const filteredChallenges = dummyChallenges.filter(challenge => {
-    // Search filter
-    if (filters.search && !challenge.title.toLowerCase().includes(filters.search.toLowerCase()) &&
-        !challenge.description.toLowerCase().includes(filters.search.toLowerCase()) &&
-        !challenge.tags.some(tag => tag.toLowerCase().includes(filters.search.toLowerCase()))) {
-      return false;
-    }
-    
-    // Difficulty filter
-    if (filters.difficulty && challenge.difficulty !== filters.difficulty) {
-      return false;
-    }
-    
-    // Tag filter
-    if (filters.tag && !challenge.tags.includes(filters.tag)) {
-      return false;
-    }
-    
-    // Completion filter
-    if (filters.completed === 'completed' && !challenge.isCompleted) {
-      return false;
-    } else if (filters.completed === 'not-completed' && challenge.isCompleted) {
-      return false;
-    }
-    
-    return true;
-  });
-  
-  // Sort challenges
-  const sortedChallenges = [...filteredChallenges].sort((a, b) => {
-    switch (filters.sortBy) {
-      case 'popular':
-        return b.solvedCount - a.solvedCount;
-      case 'newest':
-        return b.daysActive - a.daysActive;
-      case 'difficulty-asc':
-        const difficultyOrder = { beginner: 1, intermediate: 2, advanced: 3, expert: 4 };
-        return difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty];
-      case 'difficulty-desc':
-        const difficultyOrderDesc = { beginner: 1, intermediate: 2, advanced: 3, expert: 4 };
-        return difficultyOrderDesc[b.difficulty] - difficultyOrderDesc[a.difficulty];
-      default:
-        return 0;
-    }
-  });
+  useEffect(() => {
+    const fetchChallenges = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-  const handleFilterChange = (key: keyof FilterState, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+      try {
+        const { data: challengesData, error: challengesError } = await supabase
+          .from('challenges')
+          .select(`
+            *,
+            challenge_attempts(user_id, status),
+            challenge_attempts!challenge_attempts_challenge_id_fkey(count)
+          `)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (challengesError) {
+          console.error('Error fetching challenges:', challengesError);
+          return;
+        }
+
+        if (challengesData) {
+          // Extract all unique tags
+          const allTags = new Set<string>();
+          
+          const formattedChallenges: Challenge[] = challengesData.map(challenge => {
+            // Add tags to the set
+            challenge.tags.forEach(tag => allTags.add(tag));
+            
+            // Check if the current user has an attempt on this challenge
+            const userAttempt = challenge.challenge_attempts.find((attempt: any) => 
+              attempt.user_id === user.id
+            );
+            
+            // Count total attempts
+            const totalAttempts = challenge.challenge_attempts_fkey?.length || 0;
+            
+            // Count successful solves
+            const solvedCount = challenge.challenge_attempts_fkey?.filter((attempt: any) => 
+              attempt.status === 'completed'
+            ).length || 0;
+            
+            // Calculate days active
+            const createdDate = new Date(challenge.created_at);
+            const today = new Date();
+            const daysActive = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+
+            return {
+              id: challenge.id,
+              title: challenge.title,
+              description: challenge.description,
+              difficulty: challenge.difficulty,
+              tags: challenge.tags,
+              solvedCount,
+              totalAttempts,
+              daysActive,
+              status: userAttempt ? userAttempt.status : "notStarted",
+              topContributors: [], // Would need additional query to get this
+              isCompleted: userAttempt?.status === 'completed'
+            };
+          });
+
+          setChallenges(formattedChallenges);
+          setFilteredChallenges(formattedChallenges);
+          setAvailableTags(Array.from(allTags));
+        }
+      } catch (error) {
+        console.error('Error in challenges page:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChallenges();
+  }, [user]);
+
+  // Apply filters whenever they change
+  useEffect(() => {
+    let result = [...challenges];
+
+    // Apply category filter
+    if (filterCategory === "completed") {
+      result = result.filter((challenge) => challenge.isCompleted);
+    } else if (filterCategory === "inProgress") {
+      result = result.filter((challenge) => challenge.status === "started" || challenge.status === "submitted");
+    } else if (filterCategory === "notStarted") {
+      result = result.filter((challenge) => !challenge.status || challenge.status === "notStarted");
+    }
+
+    // Apply difficulty filter
+    if (difficultyFilter !== "all") {
+      result = result.filter((challenge) => challenge.difficulty === difficultyFilter);
+    }
+
+    // Apply tag filter
+    if (tagFilter !== "all") {
+      result = result.filter((challenge) => challenge.tags.includes(tagFilter));
+    }
+
+    // Apply search query
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (challenge) =>
+          challenge.title.toLowerCase().includes(query) ||
+          challenge.description.toLowerCase().includes(query) ||
+          challenge.tags.some((tag) => tag.toLowerCase().includes(query))
+      );
+    }
+
+    setFilteredChallenges(result);
+  }, [challenges, filterCategory, difficultyFilter, tagFilter, searchQuery]);
+
+  const handleTagClick = (tag: string) => {
+    setTagFilter(tag);
   };
 
-  const resetFilters = () => {
-    setFilters({
-      search: '',
-      difficulty: '',
-      tag: '',
-      sortBy: 'popular',
-      completed: 'all'
-    });
-  };
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <CandidateNavbar />
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container max-w-7xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Coding Challenges</h1>
-        <p className="text-muted-foreground">
-          Practice and enhance your skills with our collection of real-world coding challenges
-        </p>
-      </div>
-
-      {/* Sponsored Banner */}
-      <div className="mb-8">
-        <SponsoredBanner
-          title="React Performance Challenge - Sponsored by TechCorp"
-          description="Optimize a React app and demonstrate your performance tuning skills!"
-          company="TechCorp"
-          companyLogoUrl="https://placehold.co/100x50?text=TechCorp"
-          ctaText="Enter Challenge"
-          ctaLink="#"
-        />
-      </div>
-
-      {/* Filters and Controls */}
-      <div className="mb-6 space-y-4">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search challenges..."
-              className="pl-10"
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
+    <div className="min-h-screen bg-background flex flex-col">
+      <CandidateNavbar />
+      
+      <div className="container max-w-7xl mx-auto py-8 px-4 flex-grow">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Coding Challenges</h1>
+            <p className="text-muted-foreground mt-1">
+              Improve your skills with practical coding challenges
+            </p>
           </div>
           
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'outline'}
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => setViewMode('grid')}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => setViewMode('list')}
-            >
-              <ListIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium hidden sm:inline">Filters:</span>
-          </div>
-          
-          <Select
-            value={filters.difficulty}
-            onValueChange={(value) => handleFilterChange('difficulty', value)}
+          <Button
+            onClick={() => navigate("/candidate/dashboard")}
+            className="gap-2"
           >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Difficulty" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Difficulties</SelectItem>
-              <SelectItem value="beginner">Beginner</SelectItem>
-              <SelectItem value="intermediate">Intermediate</SelectItem>
-              <SelectItem value="advanced">Advanced</SelectItem>
-              <SelectItem value="expert">Expert</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select
-            value={filters.tag}
-            onValueChange={(value) => handleFilterChange('tag', value)}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Technology" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Technologies</SelectItem>
-              {allTags.map(tag => (
-                <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select
-            value={filters.sortBy}
-            onValueChange={(value) => handleFilterChange('sortBy', value)}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="popular">Most Popular</SelectItem>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="difficulty-asc">Easiest First</SelectItem>
-              <SelectItem value="difficulty-desc">Hardest First</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select
-            value={filters.completed}
-            onValueChange={(value) => handleFilterChange('completed', value)}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Completion" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Challenges</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="not-completed">Not Completed</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button variant="ghost" size="sm" onClick={resetFilters}>
-            Reset
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
           </Button>
         </div>
-      </div>
-      
-      <div className="mb-6">
-        <Tabs defaultValue="all" onValueChange={(value) => setCurrentTab(value as 'all' | 'popular' | 'newest')}>
-          <TabsList>
-            <TabsTrigger value="all" className="flex items-center gap-2">
-              <ListIcon className="h-4 w-4" />
-              All Challenges
-            </TabsTrigger>
-            <TabsTrigger value="popular" className="flex items-center gap-2">
-              <Star className="h-4 w-4" />
-              Most Popular
-            </TabsTrigger>
-            <TabsTrigger value="newest" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Newest
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-      
-      {/* Results Info */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="text-sm text-muted-foreground">
-          Showing {sortedChallenges.length} of {dummyChallenges.length} challenges
-        </div>
-        
-        <div className="flex items-center gap-2 text-sm">
-          <Badge variant="outline" className="flex items-center gap-1">
-            <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-            <span>{dummyChallenges.filter(c => c.isCompleted).length} Completed</span>
-          </Badge>
-          <Badge variant="outline" className="flex items-center gap-1">
-            <XCircle className="h-3.5 w-3.5 text-slate-400" />
-            <span>{dummyChallenges.filter(c => !c.isCompleted).length} Not Started</span>
-          </Badge>
-        </div>
-      </div>
-      
-      {/* Challenges Grid/List */}
-      {sortedChallenges.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-bold mb-2">No challenges found</h3>
-          <p className="text-muted-foreground mb-4">
-            Try adjusting your filters or search terms
-          </p>
-          <Button onClick={resetFilters}>Reset Filters</Button>
-        </div>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {sortedChallenges.map(challenge => (
-            <ChallengeCard 
-              key={challenge.id} 
-              challenge={challenge}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {sortedChallenges.map(challenge => (
-            <div key={challenge.id} className="border rounded-lg overflow-hidden bg-card hover:shadow-md transition-shadow">
-              <div className="p-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{challenge.title}</h3>
-                      {challenge.isCompleted && (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      )}
-                    </div>
-                    
-                    <p className="text-sm text-muted-foreground mt-1">{challenge.description}</p>
-                    
-                    <div className="flex items-center gap-4 mt-3 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{challenge.solvedCount} solved</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{challenge.daysActive} days active</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      <Badge variant="outline" className={`
-                        ${challenge.difficulty === 'beginner' ? 'bg-green-500' :
-                          challenge.difficulty === 'intermediate' ? 'bg-blue-500' :
-                          challenge.difficulty === 'advanced' ? 'bg-amber-500' : 
-                          'bg-red-500'} text-white`}
-                      >
-                        {challenge.difficulty.charAt(0).toUpperCase() + challenge.difficulty.slice(1)}
-                      </Badge>
-                      
-                      {challenge.tags.map(tag => (
-                        <Badge key={tag} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    variant={challenge.isCompleted ? "outline" : "default"}
-                    className="flex-shrink-0" 
-                  >
-                    {challenge.isCompleted ? "View Solution" : "Start Challenge"}
-                  </Button>
-                </div>
+
+        {/* Filters & Search */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search challenges..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Select
+                value={difficultyFilter}
+                onValueChange={(value) => setDifficultyFilter(value as DifficultyLevel)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Difficulty" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Difficulties</SelectItem>
+                  <SelectItem value="beginner">Beginner</SelectItem>
+                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                  <SelectItem value="expert">Expert</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex gap-2">
+                <Button
+                  variant={viewMode === "grid" ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => setViewMode("grid")}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => setViewMode("list")}
+                >
+                  <ListIcon className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          ))}
+          </div>
+
+          <Tabs
+            value={filterCategory}
+            onValueChange={(value) => setFilterCategory(value as FilterCategory)}
+            className="w-full"
+          >
+            <TabsList className="mb-6">
+              <TabsTrigger value="all">All Challenges</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+              <TabsTrigger value="inProgress">In Progress</TabsTrigger>
+              <TabsTrigger value="notStarted">Not Started</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Tags filter */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Badge
+              variant={tagFilter === "all" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setTagFilter("all")}
+            >
+              All Tags
+            </Badge>
+            {availableTags.map((tag) => (
+              <Badge
+                key={tag}
+                variant={tagFilter === tag ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => handleTagClick(tag)}
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
         </div>
-      )}
+
+        {/* Challenge List */}
+        {filteredChallenges.length === 0 ? (
+          <div className="text-center py-12 bg-muted/20 rounded-lg">
+            <h3 className="text-xl font-bold mb-2">No challenges found</h3>
+            <p className="text-muted-foreground mb-6">
+              Try adjusting your filters or search query
+            </p>
+            <Button onClick={() => {
+              setSearchQuery('');
+              setFilterCategory('all');
+              setDifficultyFilter('all');
+              setTagFilter('all');
+            }}>
+              Reset Filters
+            </Button>
+          </div>
+        ) : viewMode === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredChallenges.map((challenge) => (
+              <ChallengeCard
+                key={challenge.id}
+                challenge={challenge}
+                onClick={() => navigate(`/challenges/${challenge.id}`)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredChallenges.map((challenge) => (
+              <Card
+                key={challenge.id}
+                className={`transition-all duration-300 hover:shadow-md cursor-pointer ${
+                  challenge.isCompleted ? "border-green-500/30" : ""
+                }`}
+                onClick={() => navigate(`/challenges/${challenge.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                    <div>
+                      <h3 className="font-medium">{challenge.title}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {challenge.description}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${
+                            challenge.difficulty === "beginner"
+                              ? "bg-green-500"
+                              : challenge.difficulty === "intermediate"
+                              ? "bg-blue-500"
+                              : challenge.difficulty === "advanced"
+                              ? "bg-amber-500"
+                              : "bg-red-500"
+                          } text-white`}
+                        >
+                          {challenge.difficulty.charAt(0).toUpperCase() +
+                            challenge.difficulty.slice(1)}
+                        </Badge>
+                        {challenge.tags.slice(0, 3).map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {challenge.tags.length > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{challenge.tags.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:items-end">
+                      <div className="text-sm text-muted-foreground">
+                        {challenge.solvedCount} solved · {challenge.totalAttempts} attempts
+                      </div>
+                      <Button
+                        variant={challenge.isCompleted ? "outline" : "default"}
+                        size="sm"
+                      >
+                        {challenge.isCompleted
+                          ? "View Solution"
+                          : challenge.status === "started" || challenge.status === "submitted"
+                          ? "Continue"
+                          : "Start Challenge"}
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
