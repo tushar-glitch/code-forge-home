@@ -4,7 +4,7 @@ project_id = "qcxnesarokpcrzkhlqwv"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "storage", "graphql_public"]
+schemas = ["public", "storage"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
@@ -12,16 +12,6 @@ max_rows = 1000
 port = 54322
 shadow_port = 54320
 major_version = 15
-
-[db.pooler]
-enabled = false
-port = 54329
-pool_mode = "transaction"
-default_pool_size = 20
-max_client_conn = 100
-
-[realtime]
-enabled = true
 
 [studio]
 enabled = true
@@ -45,70 +35,21 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
 
-[auth.external.apple]
-enabled = false
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
 
-[auth.external.azure]
-enabled = false
+[realtime]
+enabled = true
 
-[auth.external.bitbucket]
-enabled = false
+[edge_functions]
+enabled = true
 
-[auth.external.discord]
-enabled = false
-
-[auth.external.facebook]
-enabled = false
-
-[auth.external.github]
-enabled = false
-
-[auth.external.gitlab]
-enabled = false
-
-[auth.external.google]
-enabled = false
-
-[auth.external.kakao]
-enabled = false
-
-[auth.external.keycloak]
-enabled = false
-
-[auth.external.linkedin]
-enabled = false
-
-[auth.external.notion]
-enabled = false
-
-[auth.external.spotify]
-enabled = false
-
-[auth.external.slack]
-enabled = false
-
-[auth.external.twitch]
-enabled = false
-
-[auth.external.twitter]
-enabled = false
-
-[auth.external.workos]
-enabled = false
-
-[analytics]
-enabled = false
-port = 54327
-vector_port = 54328
-backend = "postgres"
-
-[experimental]
-enable_preview_environments = true
-
-[functions.send-recruiter-verification]
+[functions.github-webhook]
 verify_jwt = false
 
-[functions.create-recruiter]
+[functions.create-github-repo]
 verify_jwt = false
 
 [functions.send-test-invitation]

@@ -663,3 +663,126 @@ export const sendTestInvitation = async (
     return false;
   }
 };
+
+// Function to get test results for a submission
+export const getTestResults = async (submissionId: number) => {
+  try {
+    const { data, error } = await supabase
+      .from('test_results')
+      .select('*')
+      .eq('submission_id', submissionId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Error fetching test results:', error);
+      return null;
+    }
+
+    return data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('Error in getTestResults:', error);
+    return null;
+  }
+};
+
+// Function to get test configurations for a test
+export const getTestConfigurations = async (testId: number) => {
+  try {
+    const { data, error } = await supabase
+      .from('test_configurations')
+      .select('*')
+      .eq('test_id', testId)
+      .eq('enabled', true);
+
+    if (error) {
+      console.error('Error fetching test configurations:', error);
+      return [];
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getTestConfigurations:', error);
+    return [];
+  }
+};
+
+// Function to create or update a test configuration
+export const saveTestConfiguration = async (config: {
+  id?: string;
+  test_id: number;
+  name: string;
+  description?: string;
+  test_script: string;
+  enabled?: boolean;
+}) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to manage test configurations",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    if (config.id) {
+      // Update existing configuration
+      const { data, error } = await supabase
+        .from('test_configurations')
+        .update({
+          name: config.name,
+          description: config.description,
+          test_script: config.test_script,
+          enabled: config.enabled !== undefined ? config.enabled : true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', config.id)
+        .select()
+        .single();
+
+      if (error) {
+        toast({
+          title: "Error updating test configuration",
+          description: error.message,
+          variant: "destructive"
+        });
+        return null;
+      }
+
+      return data;
+    } else {
+      // Create new configuration
+      const { data, error } = await supabase
+        .from('test_configurations')
+        .insert({
+          test_id: config.test_id,
+          name: config.name,
+          description: config.description,
+          test_script: config.test_script,
+          enabled: config.enabled !== undefined ? config.enabled : true
+        })
+        .select()
+        .single();
+
+      if (error) {
+        toast({
+          title: "Error creating test configuration",
+          description: error.message,
+          variant: "destructive"
+        });
+        return null;
+      }
+
+      return data;
+    }
+  } catch (error: any) {
+    toast({
+      title: "Error",
+      description: error.message || "An unexpected error occurred",
+      variant: "destructive"
+    });
+    return null;
+  }
+};
