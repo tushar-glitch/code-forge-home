@@ -1,0 +1,63 @@
+
+name: Run Playwright Tests
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Dependencies
+        run: npm ci
+        
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+        
+      - name: Run Playwright Tests
+        id: playwright
+        run: npx playwright test
+        continue-on-error: true
+        
+      - name: Capture Test Results
+        if: always()
+        run: |
+          echo "PLAYWRIGHT_STATUS=${{ steps.playwright.outcome }}" >> $GITHUB_ENV
+          echo "PLAYWRIGHT_REPORT=$(cat playwright-report/results.json 2>/dev/null || echo '{}')" >> $GITHUB_ENV
+          echo "PLAYWRIGHT_LOGS=$(cat playwright.log 2>/dev/null || echo 'No logs available')" >> $GITHUB_ENV
+          
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-screenshots
+          path: playwright-report/screenshots
+          retention-days: 30
+          
+      - name: Send Results Back
+        if: always()
+        run: |
+          TEST_STATUS="failed"
+          if [[ "${{ env.PLAYWRIGHT_STATUS }}" == "success" ]]; then
+            TEST_STATUS="passed"
+          fi
+          
+          curl -X POST https://qcxnesarokpcrzkhlqwv.supabase.co/functions/v1/github-webhook \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"submission_id\": {{ submission_id }},
+              \"assignment_id\": {{ assignment_id }},
+              \"status\": \"${TEST_STATUS}\",
+              \"test_output\": ${PLAYWRIGHT_REPORT},
+              \"logs\": \"${PLAYWRIGHT_LOGS}\"
+            }"

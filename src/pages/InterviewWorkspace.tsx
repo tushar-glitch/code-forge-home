@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -10,7 +11,7 @@ import {
 } from "@codesandbox/sandpack-react";
 import { atomDark } from "@codesandbox/sandpack-themes";
 import { Button } from "@/components/ui/button";
-import { Loader2, Bot, Code2, MessageSquare, Sparkles } from "lucide-react";
+import { Loader2, Bot, Code2, MessageSquare, Sparkles, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -19,6 +20,7 @@ import {
   getAssignmentDetails,
   updateAssignmentStatus,
 } from "@/lib/test-management-utils";
+import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
 
 // Type definition for project files
 type ProjectFiles = Record<string, string>;
@@ -77,6 +79,10 @@ const InterviewWorkspace = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startHeight, setStartHeight] = useState(0);
+  const [autosaveStatus, setAutosaveStatus] = useState<"saved" | "saving" | "error">("saved");
+  const [testStatus, setTestStatus] = useState<"pending" | "running" | "passed" | "failed" | "not_run">("not_run");
+  const [testResults, setTestResults] = useState<any>(null);
+  const [submissionId, setSubmissionId] = useState<number | null>(null);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -162,6 +168,17 @@ const InterviewWorkspace = () => {
           // If there are submissions, load the most recent one
           if (submissions && submissions.length > 0) {
             const latestSubmission = submissions[0];
+            setSubmissionId(latestSubmission.id);
+            
+            // Load test status if available
+            if (latestSubmission.test_status) {
+              setTestStatus(latestSubmission.test_status);
+            }
+            
+            // Load test results if available
+            if (latestSubmission.test_results) {
+              setTestResults(latestSubmission.test_results);
+            }
 
             try {
               if (latestSubmission.content) {
@@ -199,21 +216,102 @@ const InterviewWorkspace = () => {
     loadAssignment();
   }, [user, assignmentId, navigate, toast]);
 
+  // Poll for test results if tests are running
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (testStatus === "running" && submissionId) {
+      interval = setInterval(async () => {
+        try {
+          const { data: submission, error } = await supabase
+            .from("submissions")
+            .select("test_status, test_results")
+            .eq("id", submissionId)
+            .single();
+            
+          if (error) throw error;
+          
+          if (submission && submission.test_status !== "running") {
+            setTestStatus(submission.test_status);
+            setTestResults(submission.test_results);
+            clearInterval(interval);
+          }
+        } catch (err) {
+          console.error("Error polling test results:", err);
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+    
+    return () => clearInterval(interval);
+  }, [testStatus, submissionId]);
+
   // Handle file change
   const handleFileChange = async (files: ProjectFiles) => {
     // Automatically save content to Supabase when files change
+    setAutosaveStatus("saving");
     if (assignmentId) {
       try {
-        const { error } = await supabase.from("submissions").insert({
+        const { data: submission, error } = await supabase.from("submissions").insert({
           assignment_id: parseInt(assignmentId),
           content: JSON.stringify(files),
           saved_at: new Date().toISOString(),
-        });
+        }).select().single();
 
         if (error) throw error;
+        
+        setSubmissionId(submission.id);
+        setAutosaveStatus("saved");
       } catch (error) {
         console.error("Error saving submission:", error);
+        setAutosaveStatus("error");
       }
+    }
+  };
+
+  const runTests = async () => {
+    if (!submissionId || !assignmentId) {
+      toast({
+        title: "Error",
+        description: "Cannot run tests without a valid submission",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setTestStatus("running");
+    
+    try {
+      // Update the submission test status
+      await supabase
+        .from("submissions")
+        .update({ test_status: "running" })
+        .eq("id", submissionId);
+        
+      // Call the edge function to create GitHub repo and run tests
+      const { data, error } = await supabase.functions.invoke("create-github-repo", {
+        body: {
+          assignment_id: parseInt(assignmentId),
+          submission_id: submissionId,
+          project_files: projectFiles,
+          test_id: assignmentData.test.id
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Tests Started",
+        description: "Your code is being tested. Results will appear shortly.",
+      });
+      
+    } catch (error) {
+      console.error("Error running tests:", error);
+      setTestStatus("not_run");
+      toast({
+        title: "Error",
+        description: "Failed to run tests. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -231,6 +329,29 @@ const InterviewWorkspace = () => {
 
     setIsSubmitting(true);
     try {
+      // Create a final submission with current files if one doesn't exist
+      let finalSubmissionId = submissionId;
+      
+      if (!finalSubmissionId) {
+        const { data: submission, error: submissionError } = await supabase
+          .from("submissions")
+          .insert({
+            assignment_id: parseInt(assignmentId),
+            content: JSON.stringify(projectFiles),
+            saved_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+  
+        if (submissionError) throw submissionError;
+        finalSubmissionId = submission.id;
+      }
+      
+      // Run tests if they haven't been run yet
+      if (testStatus === "not_run" || testStatus === "pending") {
+        await runTests();
+      }
+      
       // Mark the assignment as completed
       const updated = await updateAssignmentStatus(
         parseInt(assignmentId),
@@ -242,17 +363,6 @@ const InterviewWorkspace = () => {
       if (!updated) {
         throw new Error("Failed to update assignment status");
       }
-
-      // Create a final submission with current files
-      const { error: submissionError } = await supabase
-        .from("submissions")
-        .insert({
-          assignment_id: parseInt(assignmentId),
-          content: JSON.stringify(projectFiles),
-          saved_at: new Date().toISOString(),
-        });
-
-      if (submissionError) throw submissionError;
 
       toast({
         title: "Submission Successful",
@@ -321,38 +431,18 @@ const InterviewWorkspace = () => {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Header */}
-      <div className="bg-card border-b border-border p-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-semibold">
-            {assignmentData?.test?.test_title || "Coding Test"}
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            {assignmentData?.test?.primary_language || "JavaScript"} coding
-            challenge
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <div className="text-sm text-muted-foreground">
-            Autosaving changes...
-          </div>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              "Submit Test"
-            )}
-          </Button>
-        </div>
-      </div>
+      {/* Header with auto-save status and submission button */}
+      <WorkspaceHeader 
+        testTitle={assignmentData?.test?.test_title || "Coding Test"} 
+        autosaveStatus={autosaveStatus} 
+        onSubmit={handleSubmit} 
+        isSubmitting={isSubmitting}
+      />
 
-      {/* Main Content - Split into two sections */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Sandpack Editor - Top Half */}
-        {/* <div className="h-1/2 min-h-0 overflow-hidden"> */}
+        {/* Sandpack Editor */}
+        <div className="flex-1 min-h-0 overflow-hidden">
           <SandpackProvider
             theme={atomDark}
             files={projectFiles}
@@ -430,45 +520,58 @@ const InterviewWorkspace = () => {
                 showRefreshButton
                 showOpenInCodeSandbox={false}
               />
-              {/* <SandpackConsole
-                // className="h-48 overflow-auto bg-black text-white p-2 text-sm"
-                standalone={false}
-                showHeader={false}
-              /> */}
             </SandpackLayout>
           </SandpackProvider>
-        {/* </div> */}
+        </div>
 
-        {/* AI Interviewer - Bottom Half (Coming Soon) */}
-        {/* <div className="h-1/2 border-t border-border bg-muted/30 p-6">
-          <div className="h-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 bg-background/50">
-            <div className="text-center max-w-md p-6">
-              <Bot className="w-16 h-16 mx-auto mb-4 text-primary/60" />
-              <h2 className="text-2xl font-bold mb-2">
-                AI Interviewer Coming Soon
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                Our AI interviewer is currently under construction. Soon, you'll
-                be able to chat with an AI that will ask coding questions and
-                provide helpful feedback.
-              </p>
-              <div className="flex gap-4 justify-center">
-                <div className="flex items-center p-2 rounded-md bg-muted/80">
-                  <Code2 className="h-5 w-5 mr-2 text-blue-500" />
-                  <span className="text-sm">Code Analysis</span>
+        {/* Test Results Section */}
+        <div className="border-t border-border p-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">Test Results</h2>
+            <Button 
+              onClick={runTests} 
+              disabled={testStatus === "running"} 
+              variant={testStatus === "passed" ? "success" : "default"}
+            >
+              {testStatus === "running" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {testStatus === "passed" && <CheckCircle className="mr-2 h-4 w-4" />}
+              {testStatus === "failed" && <XCircle className="mr-2 h-4 w-4" />}
+              {testStatus === "running" ? "Running Tests..." : "Run Tests"}
+            </Button>
+          </div>
+          
+          {/* Test Status */}
+          {testStatus !== "not_run" && (
+            <div className="mt-4">
+              <div className={`p-4 rounded-md ${
+                testStatus === "passed" ? "bg-green-100 border border-green-200" : 
+                testStatus === "failed" ? "bg-red-100 border border-red-200" :
+                "bg-gray-100 border border-gray-200"
+              }`}>
+                <div className="flex items-center">
+                  {testStatus === "passed" && <CheckCircle className="h-5 w-5 text-green-500 mr-2" />}
+                  {testStatus === "failed" && <XCircle className="h-5 w-5 text-red-500 mr-2" />}
+                  {testStatus === "running" && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
+                  {testStatus === "pending" && <Code2 className="h-5 w-5 mr-2" />}
+                  <span className="font-medium capitalize">{testStatus}</span>
                 </div>
-                <div className="flex items-center p-2 rounded-md bg-muted/80">
-                  <MessageSquare className="h-5 w-5 mr-2 text-green-500" />
-                  <span className="text-sm">Live Chat</span>
-                </div>
-                <div className="flex items-center p-2 rounded-md bg-muted/80">
-                  <Sparkles className="h-5 w-5 mr-2 text-amber-500" />
-                  <span className="text-sm">Smart Suggestions</span>
-                </div>
+                
+                {testResults && (
+                  <div className="mt-4">
+                    <h3 className="font-medium mb-2">Test Details:</h3>
+                    <pre className="bg-gray-800 text-white p-3 rounded text-sm overflow-auto max-h-40">
+                      {JSON.stringify(testResults, null, 2)}
+                    </pre>
+                  </div>
+                )}
+                
+                {testStatus === "running" && (
+                  <p className="text-sm mt-2">Tests are running. This might take a few moments...</p>
+                )}
               </div>
             </div>
-          </div>
-        </div> */}
+          )}
+        </div>
       </div>
     </div>
   );
