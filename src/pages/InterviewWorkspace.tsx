@@ -73,6 +73,10 @@ const InterviewWorkspace = () => {
   const [assignmentData, setAssignmentData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projectData, setProjectData] = useState<any>(null);
+  const [editorHeight, setEditorHeight] = useState(300);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [startHeight, setStartHeight] = useState(0);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -268,6 +272,42 @@ const InterviewWorkspace = () => {
     }
   };
 
+  // Simplified drag handlers
+  const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setStartY(e.clientY);
+    setStartHeight(editorHeight);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const deltaY = e.clientY - startY;
+      const newHeight = Math.max(200, Math.min(startHeight + deltaY, window.innerHeight - 200));
+      setEditorHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, startY, startHeight]);
+
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
@@ -330,9 +370,9 @@ const InterviewWorkspace = () => {
                 style={{
                   display: "flex",
                   width: "100%",
-                  minHeight: "300px",
-                  maxHeight: "300px",
+                  height: `${editorHeight}px`,
                   backgroundColor: `var(--sp-colors-surface1)`,
+                  position: 'relative',
                 }}
               >
                 <div
@@ -348,8 +388,7 @@ const InterviewWorkspace = () => {
                   <SandpackCodeEditor
                     showLineNumbers={true}
                     style={{
-                      minHeight: "100%",
-                      maxHeight: "100%",
+                      height: "100%",
                       overflow: "auto",
                     }}
                     showInlineErrors
@@ -360,6 +399,32 @@ const InterviewWorkspace = () => {
                   />
                 </div>
               </div>
+              
+              <div
+                style={{
+                  width: "100%",
+                  height: "8px",
+                  backgroundColor: "#2d2d2d",
+                  cursor: "row-resize",
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderTop: "1px solid #404040",
+                  borderBottom: "1px solid #404040",
+                  userSelect: "none",
+                }}
+                onMouseDown={handleDragStart}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    height: "4px",
+                    backgroundColor: "#404040",
+                  }}
+                />
+              </div>
+
               <SandpackPreview
                 showNavigator={true}
                 showRefreshButton
