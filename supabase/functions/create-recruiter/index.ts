@@ -89,7 +89,7 @@ const handler = async (req)=>{
             <p><strong>Password:</strong> ${password}</p>
           </div>
           <p>Please sign in using the link below:</p>
-          <a href="http://localhost:3000/signin" style="display: inline-block; background-color: #8B5CF6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Sign In Now</a>
+          <a href="https://bnreszjivetxuxsdwkxv.supabase.co/signin" style="display: inline-block; background-color: #8B5CF6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Sign In Now</a>
           <p style="margin-top: 20px;">For security reasons, we recommend changing your password after your first login.</p>
           <p>If you have any questions, please don't hesitate to contact our support team.</p>
           <p>Thanks for choosing Hire10xDevs for your technical assessments!</p>
