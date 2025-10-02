@@ -115,7 +115,11 @@ const CreateTest = () => {
       }
 
       const newTestId = await createTest({
-        ...values,
+        test_title: values.test_title || '',
+        project_id: values.project_id || '',
+        time_limit: typeof values.time_limit === 'string' ? parseInt(values.time_limit) : values.time_limit || 0,
+        primary_language: values.primary_language || '',
+        instructions: values.instructions || '',
         user_id: user.id,
       });
 

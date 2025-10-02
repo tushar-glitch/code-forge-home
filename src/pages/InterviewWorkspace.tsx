@@ -172,7 +172,7 @@ const InterviewWorkspace = () => {
             
             // Load test status if available
             if (latestSubmission.test_status) {
-              setTestStatus(latestSubmission.test_status);
+              setTestStatus(latestSubmission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
             }
             
             // Load test results if available
@@ -232,7 +232,7 @@ const InterviewWorkspace = () => {
           if (error) throw error;
           
           if (submission && submission.test_status !== "running") {
-            setTestStatus(submission.test_status);
+            setTestStatus(submission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
             setTestResults(submission.test_results);
             clearInterval(interval);
           }
@@ -453,7 +453,6 @@ const InterviewWorkspace = () => {
                 "react-dom": "^18.0.0",
               },
             }}
-            autorun
           >
             <SandpackLayout>
               <div
@@ -530,8 +529,8 @@ const InterviewWorkspace = () => {
             <h2 className="text-lg font-semibold">Test Results</h2>
             <Button 
               onClick={runTests} 
-              disabled={testStatus === "running"} 
-              variant={testStatus === "passed" ? "success" : "default"}
+              disabled={testStatus === "running"}
+              className={testStatus === "passed" ? "bg-green-600 hover:bg-green-700" : ""}
             >
               {testStatus === "running" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {testStatus === "passed" && <CheckCircle className="mr-2 h-4 w-4" />}

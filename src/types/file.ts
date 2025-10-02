@@ -6,3 +6,5 @@ export interface FileType {
   children?: FileType[];
   defaultContent?: string;
 }
+
+export type CodeTree = FileType;

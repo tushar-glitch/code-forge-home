@@ -49,7 +49,7 @@ const ContestsPage = () => {
         
         if (contestsData) {
           // Process and transform contests
-          const processedContests: Contest[] = await Promise.all(contestsData.map(async contest => {
+          const processedContests = await Promise.all(contestsData.map(async contest => {
             // Count participants
             const { count, error: countError } = await supabase
               .from('contest_participants')
@@ -87,7 +87,7 @@ const ContestsPage = () => {
             };
           }));
           
-          setContests(processedContests);
+          setContests(processedContests as Contest[]);
         }
       } catch (error) {
         console.error('Error in contests page:', error);
@@ -336,7 +336,7 @@ const ContestsPage = () => {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  {contest.isParticipating ? (
+                  {(contest as any).isParticipating ? (
                     <Button 
                       className="w-full" 
                       variant={contest.status === "ended" ? "outline" : "default"}

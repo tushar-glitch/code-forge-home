@@ -69,7 +69,7 @@ const ChallengesPage: React.FC = () => {
           // Extract all unique tags
           const allTags = new Set<string>();
           
-          const formattedChallenges: Challenge[] = challengesData.map(challenge => {
+          const formattedChallenges = challengesData.map(challenge => {
             // Add tags to the set
             challenge.tags.forEach(tag => allTags.add(tag));
             
@@ -79,10 +79,10 @@ const ChallengesPage: React.FC = () => {
             );
             
             // Count total attempts
-            const totalAttempts = challenge.challenge_attempts_fkey?.length || 0;
+            const totalAttempts = challenge.challenge_attempts?.length || 0;
             
             // Count successful solves
-            const solvedCount = challenge.challenge_attempts_fkey?.filter((attempt: any) => 
+            const solvedCount = challenge.challenge_attempts?.filter((attempt: any) =>
               attempt.status === 'completed'
             ).length || 0;
             
@@ -106,8 +106,8 @@ const ChallengesPage: React.FC = () => {
             };
           });
 
-          setChallenges(formattedChallenges);
-          setFilteredChallenges(formattedChallenges);
+          setChallenges(formattedChallenges as Challenge[]);
+          setFilteredChallenges(formattedChallenges as any);
           setAvailableTags(Array.from(allTags));
         }
       } catch (error) {
@@ -126,11 +126,11 @@ const ChallengesPage: React.FC = () => {
 
     // Apply category filter
     if (filterCategory === "completed") {
-      result = result.filter((challenge) => challenge.isCompleted);
+      result = result.filter((challenge: any) => challenge.isCompleted);
     } else if (filterCategory === "inProgress") {
-      result = result.filter((challenge) => challenge.status === "started" || challenge.status === "submitted");
+      result = result.filter((challenge: any) => challenge.status === "started" || challenge.status === "submitted");
     } else if (filterCategory === "notStarted") {
-      result = result.filter((challenge) => !challenge.status || challenge.status === "notStarted");
+      result = result.filter((challenge: any) => !challenge.status || challenge.status === "notStarted");
     }
 
     // Apply difficulty filter
@@ -358,7 +358,7 @@ const ChallengesPage: React.FC = () => {
                       >
                         {challenge.isCompleted
                           ? "View Solution"
-                          : challenge.status === "started" || challenge.status === "submitted"
+                          : (challenge as any).status === "started" || (challenge as any).status === "submitted"
                           ? "Continue"
                           : "Start Challenge"}
                         <ChevronRight className="h-4 w-4 ml-1" />

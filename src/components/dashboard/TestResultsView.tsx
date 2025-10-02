@@ -43,7 +43,7 @@ export function TestResultsView({ assignmentId, submissionId }: TestResultsViewP
         const { data, error } = await query;
 
         if (error) throw error;
-        setTestResults(data || []);
+        setTestResults((data as TestResult[]) || []);
       } catch (error) {
         console.error("Error loading test results:", error);
         toast({

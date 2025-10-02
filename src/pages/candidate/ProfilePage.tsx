@@ -154,7 +154,11 @@ const ProfilePage = () => {
           .limit(5);
           
         if (!activitiesError && activitiesData) {
-          setActivities(activitiesData as Activity[]);
+          setActivities(activitiesData.map(a => ({
+            ...a,
+            type: a.activity_type,
+            timestamp: a.created_at
+          })) as Activity[]);
         }
         setLoadingActivities(false);
         

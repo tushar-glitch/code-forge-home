@@ -1,5 +1,8 @@
 
 // Basic React app test template
+// import { test, expect } from '@playwright/test';
+
+export const testTemplate = `
 import { test, expect } from '@playwright/test';
 
 test('App renders without crashing', async ({ page }) => {
@@ -53,3 +56,4 @@ test('Interactive elements respond to user input', async ({ page }) => {
     await expect(input.first()).toHaveValue('Test input');
   }
 });
+`;

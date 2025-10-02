@@ -115,7 +115,11 @@ const CandidateDashboard = () => {
           .limit(4);
 
         if (!activitiesError && activitiesData) {
-          setActivities(activitiesData as Activity[]);
+          setActivities(activitiesData.map(a => ({
+            ...a,
+            type: a.activity_type,
+            timestamp: a.created_at
+          })) as Activity[]);
         }
 
         // Fetch leaderboard data
@@ -206,17 +210,17 @@ const CandidateDashboard = () => {
           .limit(2);
 
         if (!challengesError && challengesData) {
-          const formattedChallenges: Challenge[] = challengesData.map(challenge => {
+          const formattedChallenges = challengesData.map(challenge => {
             // Check if the current user has completed this challenge
             const userAttempt = challenge.challenge_attempts.find((attempt: any) => 
               attempt.user_id === user.id
             );
             
             // Count total attempts
-            const totalAttempts = challenge.challenge_attempts_fkey?.length || 0;
+            const totalAttempts = challenge.challenge_attempts?.length || 0;
             
             // Count successful solves
-            const solvedCount = challenge.challenge_attempts_fkey?.filter((attempt: any) => 
+            const solvedCount = challenge.challenge_attempts?.filter((attempt: any) => 
               attempt.status === 'completed'
             ).length || 0;
             
@@ -239,7 +243,7 @@ const CandidateDashboard = () => {
             };
           });
 
-          setChallenges(formattedChallenges);
+          setChallenges(formattedChallenges as Challenge[]);
         }
 
         // Fetch contests
@@ -251,7 +255,7 @@ const CandidateDashboard = () => {
           .limit(2);
 
         if (!contestsError && contestsData) {
-          const formattedContests: Contest[] = contestsData.map(contest => {
+          const formattedContests = contestsData.map(contest => {
             return {
               id: contest.id,
               title: contest.title,
@@ -269,7 +273,7 @@ const CandidateDashboard = () => {
             };
           });
 
-          setContests(formattedContests);
+          setContests(formattedContests as Contest[]);
         }
 
       } catch (error) {
@@ -664,7 +668,7 @@ const CandidateDashboard = () => {
                 <ProgressTracker 
                   currentXP={profileData.totalScore} 
                   nextLevelXP={1000} 
-                  level={profile?.level || 1}
+                  level={1}
                   userId={user?.id}
                 />
                 

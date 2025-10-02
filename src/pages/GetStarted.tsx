@@ -98,7 +98,7 @@ const GetStarted = () => {
           email: data.email,
           role: data.role,
           hiring_count: data.hiringCount,
-          company_id: data.companyId
+          company_id: parseInt(companyId)
         })
         .select('id')
         .single();
@@ -107,7 +107,7 @@ const GetStarted = () => {
 
       // Call the edge function to create a user and send email
       const response = await fetch(
-        "https://qcxnesarokpcrzkhlqwv.supabase.co/functions/v1/create-recruiter",
+        "https://bnreszjivetxuxsdwkxv.supabase.co/functions/v1/create-recruiter",
         {
           method: "POST",
           headers: {

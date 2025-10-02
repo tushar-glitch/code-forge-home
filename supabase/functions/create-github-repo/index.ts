@@ -126,7 +126,7 @@ jobs:
             TEST_STATUS="passed"
           fi
           
-          curl -X POST https://qcxnesarokpcrzkhlqwv.supabase.co/functions/v1/github-webhook \\
+          curl -X POST https://bnreszjivetxuxsdwkxv.supabase.co/functions/v1/github-webhook \\
             -H "Content-Type: application/json" \\
             -d "{
               \\"submission_id\\": ${payload.submission_id},

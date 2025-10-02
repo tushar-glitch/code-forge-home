@@ -107,7 +107,7 @@ const ProjectManagement = () => {
           throw error;
         }
         
-        setProjects(data || []);
+        setProjects((data as any[]) || []);
       } catch (error) {
         console.error("Error fetching projects:", error);
         toast({
@@ -196,7 +196,7 @@ const ProjectManagement = () => {
         newProject.files_json = JSON.stringify(files);
       }
       
-      setProjects((prev) => [newProject, ...prev]);
+      setProjects((prev) => [newProject as any, ...prev]);
       resetCreateForm();
       
       toast({
@@ -483,7 +483,7 @@ const ProjectManagement = () => {
                   className="cursor-pointer"
                   onChange={handleFileSelect}
                   ref={fileInputRef}
-                  directory=""
+                  {...({ webkitdirectory: "", directory: "" } as any)}
                 />
                 <p className="text-xs text-muted-foreground">
                   To upload an entire folder, click "Choose Files", then select a folder
@@ -580,13 +580,13 @@ const ProjectManagement = () => {
                         <TableCell className="font-mono text-sm">
                           <div className="flex items-center">
                             <FileIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                            {file.path}
+                            {(file as any).path}
                           </div>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
                           {/* Calculate approximate file size */}
-                          {file.content
-                            ? `${Math.ceil(file.content.length / 1024)} KB`
+                          {(file as any).content
+                            ? `${Math.ceil((file as any).content.length / 1024)} KB`
                             : "N/A"}
                         </TableCell>
                       </TableRow>
