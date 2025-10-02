@@ -1,1 +1,4 @@
 project_id = "bnreszjivetxuxsdwkxv"
+
+[functions.create-recruiter]
+verify_jwt = false
