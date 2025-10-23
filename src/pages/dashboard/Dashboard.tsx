@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Bar, Pie } from "recharts";
@@ -16,9 +15,9 @@ import {
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Clock, FileText, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { api } from "@/lib/api"; // Import our new API client
 
 // Animation variants
 const containerVariants = {
@@ -42,8 +41,14 @@ const itemVariants = {
   },
 };
 
+const EmptyState = ({ message }: { message: string }) => (
+  <div className="flex items-center justify-center h-full">
+    <p className="text-muted-foreground">{message}</p>
+  </div>
+);
+
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     testsCreated: 0,
@@ -52,7 +57,7 @@ const Dashboard: React.FC = () => {
     avgCompletionTime: 0
   });
   const [weeklyData, setWeeklyData] = useState([]);
-  const [passFailData, setPassFailData] = useState([]);
+  const [passFailData, setPassFailData] = useState<{name: string, value: number}[]>([]);
   const [activityFeed, setActivityFeed] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -65,72 +70,20 @@ const Dashboard: React.FC = () => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
       try {
-        // Fetch tests count
-        const { count: testsCount } = await supabase
-          .from('tests')
-          .select('*', { count: 'exact', head: true });
-
-        // Fetch candidates count
-        const { count: candidatesCount } = await supabase
-          .from('candidates')
-          .select('*', { count: 'exact', head: true });
-
-        // Fetch submissions count
-        const { count: submissionsCount } = await supabase
-          .from('submissions')
-          .select('*', { count: 'exact', head: true });
-
-        // Set the stats
-        setStats({
-          testsCreated: testsCount || 0,
-          candidatesInvited: candidatesCount || 0,
-          submissionsReceived: submissionsCount || 0,
-          avgCompletionTime: 45 // Dummy value for now
-        });
-
-        // For now, set dummy data for the charts
-        setWeeklyData([
-          { name: "Mon", submissions: 4 },
-          { name: "Tue", submissions: 6 },
-          { name: "Wed", submissions: 8 },
-          { name: "Thu", submissions: 10 },
-          { name: "Fri", submissions: 7 },
-          { name: "Sat", submissions: 2 },
-          { name: "Sun", submissions: 3 },
+        const [statsData, weeklyData, passFailDataResponse, activityFeedData] = await Promise.all([
+          api.get<any>('/dashboard/stats', session?.token),
+          api.get<any>('/dashboard/weekly-submissions', session?.token),
+          api.get<{ pass: number, fail: number }>('/dashboard/pass-fail-ratio', session?.token),
+          api.get<any>('/dashboard/activity-feed', session?.token),
         ]);
 
+        setStats(statsData);
+        setWeeklyData(weeklyData.data.map((value: number, index: number) => ({ name: weeklyData.labels[index], submissions: value })));
         setPassFailData([
-          { name: "Pass", value: 65 },
-          { name: "Fail", value: 35 },
+          { name: 'Pass', value: passFailDataResponse.pass },
+          { name: 'Fail', value: passFailDataResponse.fail },
         ]);
-
-        // Fetch recent activity (just use dummy data for now)
-        setActivityFeed([
-          {
-            id: 1,
-            type: "test_created",
-            title: "React Frontend Test",
-            time: "30 minutes ago",
-          },
-          {
-            id: 2,
-            type: "candidate_submit",
-            title: "John Smith submitted Node.js API Test",
-            time: "2 hours ago",
-          },
-          {
-            id: 3,
-            type: "feedback_pending",
-            title: "Feedback pending for 5 candidates",
-            time: "1 day ago",
-          },
-          {
-            id: 4,
-            type: "candidate_invite",
-            title: "10 new candidates were invited",
-            time: "2 days ago",
-          },
-        ]);
+        setActivityFeed(activityFeedData);
 
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -140,7 +93,7 @@ const Dashboard: React.FC = () => {
     };
 
     fetchDashboardData();
-  }, [user, navigate]);
+  }, [user, navigate, session]);
 
   const COLORS = ["#6366f1", "#e11d48"];
 
@@ -239,24 +192,28 @@ const Dashboard: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={weeklyData}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar
-                        dataKey="submissions"
-                        name="Submissions"
-                        fill="#6366f1"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {weeklyData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={weeklyData}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar
+                          dataKey="submissions"
+                          name="Submissions"
+                          fill="#6366f1"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <EmptyState message="No submission data available for the last 7 days." />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -269,29 +226,33 @@ const Dashboard: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={passFailData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) =>
-                          `${name}: ${(percent * 100).toFixed(0)}%`
-                        }
-                      >
-                        {passFailData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {passFailData.some(d => d.value > 0) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={passFailData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) =>
+                            `${name}: ${(percent * 100).toFixed(0)}%`
+                          }
+                        >
+                          {passFailData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <EmptyState message="No pass/fail data available." />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -305,30 +266,28 @@ const Dashboard: React.FC = () => {
               <CardTitle>Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {activityFeed.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col space-y-1 border-b pb-3 last:border-0"
-                  >
-                    <p className="font-medium">{item.title}</p>
-                    <div className="flex justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {item.time}
-                      </span>
-                      <span className="text-xs font-medium text-primary">
-                        {item.type === "test_created"
-                          ? "Test Created"
-                          : item.type === "candidate_submit"
-                          ? "Submission"
-                          : item.type === "feedback_pending"
-                          ? "Feedback"
-                          : "Invitation"}
-                      </span>
+              {activityFeed.length > 0 ? (
+                <div className="space-y-4">
+                  {activityFeed.map((item: any) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-col space-y-1 border-b pb-3 last:border-0"
+                    >
+                      <p className="font-medium">{item.title}</p>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(item.created_at).toLocaleString()}
+                        </span>
+                        <span className="text-xs font-medium text-primary">
+                          {item.activity_type}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState message="No recent activity." />
+              )}
             </CardContent>
           </Card>
         </motion.section>

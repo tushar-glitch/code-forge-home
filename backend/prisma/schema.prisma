@@ -1,0 +1,302 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DeveloperProfile {
+  id            String             @id @default(uuid()) // This is likely linked to auth.users.id
+  avatar_url    String?
+  bio           String?
+  created_at    DateTime           @default(now())
+  full_name     String?
+  github_url    String?
+  join_date     DateTime           @default(now())
+  level         Int                @default(0)
+  linkedin_url  String?
+  next_level_xp Int                @default(0)
+  updated_at    DateTime           @updatedAt
+  username      String             @unique
+  xp_points     Int                @default(0)
+  // Link to the new User model
+  userId        String?            @unique
+  User          User?              @relation(fields: [userId], references: [id])
+  ChallengeAttempt ChallengeAttempt[]
+  ContestParticipant ContestParticipant[]
+  UserActivity  UserActivity[]
+  UserBadge     UserBadge[]
+  UserSkill     UserSkill[]
+}
+
+model Profile {
+  id         Int      @id @default(autoincrement())
+  company_id Int?
+  created_at DateTime @default(now())
+  first_name String?
+  last_name  String?
+  role       String
+  Company    Company? @relation(fields: [company_id], references: [id])
+  // Link to the new User model
+  userId     String?  @unique
+  User       User?    @relation(fields: [userId], references: [id])
+}
+
+model Lead {
+  id           String     @id @default(uuid())
+  company_id   Int
+  created_at   DateTime   @default(now())
+  email        String     @unique
+  hiring_count Int
+  notes        String?
+  role         String
+  status       String     @default("active")
+  Company      Company    @relation(fields: [company_id], references: [id])
+  Recruiter    Recruiter?
+  userId       String?    @unique
+  User         User?      @relation(fields: [userId], references: [id])
+}
+
+model TestAssignment {
+  id                  Int        @id @default(autoincrement())
+  access_link         String?
+  candidate_id        Int?
+  completed_at        DateTime?
+  created_at          DateTime   @default(now())
+  git_branch          String?
+  github_access_token String?
+  github_repo_url     String?
+  started_at          DateTime?
+  status              String?
+  test_id             Int?
+  Candidate           Candidate? @relation(fields: [candidate_id], references: [id])
+  Test                Test?      @relation(fields: [test_id], references: [id])
+  Feedback            Feedback[]
+  Submission          Submission[]
+  TestResult          TestResult[]
+  ProctoringEvents    ProctoringEvent[]
+}
+
+model TestConfiguration {
+  id          String   @id @default(uuid())
+  created_at  DateTime @default(now())
+  description String?
+  enabled     Boolean  @default(true)
+  name        String
+  test_id     Int
+  test_script String
+  updated_at  DateTime @updatedAt
+  Test        Test     @relation(fields: [test_id], references: [id])
+}
+
+model ContestParticipant {
+  id                 String    @id @default(uuid())
+  contest_id         String
+  joined_at          DateTime  @default(now())
+  rank               Int?
+  score              Int?
+  submission_content Json?
+  user_id            String
+  Contest            Contest   @relation(fields: [contest_id], references: [id])
+  DeveloperProfile   DeveloperProfile @relation(fields: [user_id], references: [id])
+}
+
+model DeveloperBadge {
+  id          String       @id @default(uuid())
+  created_at  DateTime     @default(now())
+  description String
+  icon        String
+  name        String
+  rarity      String
+  UserBadge   UserBadge[]
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  role          String    @default("candidate") // Added role field
+  // Link to DeveloperProfile and Profile if they represent different aspects of a user
+  DeveloperProfile DeveloperProfile? // One-to-one relationship
+  Profile       Profile? // One-to-one relationship
+  Test          Test[] // A user can create multiple tests
+  Lead          Lead?
+  InvitedCandidates Candidate[]
+}
+
+model Candidate {
+  id           Int            @id @default(autoincrement())
+  created_at   DateTime       @default(now())
+  email        String?
+  first_name   String?
+  last_name    String?
+  invited_by   String?
+  InvitedByUser User?          @relation(fields: [invited_by], references: [id])
+  TestAssignment TestAssignment[]
+}
+
+model ChallengeAttempt {
+  id                 String   @id @default(uuid())
+  challenge_id       String
+  completed_at       DateTime?
+  score              Int?
+  started_at         DateTime @default(now())
+  status             String
+  submission_content Json?
+  user_id            String
+  Challenge          Challenge @relation(fields: [challenge_id], references: [id])
+  DeveloperProfile   DeveloperProfile @relation(fields: [user_id], references: [id])
+}
+
+model Test {
+  id               Int                 @id @default(autoincrement())
+  created_at       DateTime            @default(now())
+  instructions     String?
+  primary_language String?
+  test_title       String
+  time_limit       Int
+  user_id          String?
+  files_json       Json?
+  dependencies     Json?
+  test_files_json  Json?
+  technology       String?
+  challengeId      String?
+  problem_statement String?
+  TestAssignment   TestAssignment[]
+  TestConfiguration TestConfiguration[]
+  User             User?               @relation(fields: [user_id], references: [id])
+  Challenge        Challenge?          @relation(fields: [challengeId], references: [id])
+}
+
+model Challenge {
+  id                 String             @id @default(uuid())
+  created_at         DateTime           @default(now())
+  description        String
+  difficulty         String
+  is_active          Boolean            @default(true)
+  tags               String[]
+  title              String
+  files_json         Json?
+  dependencies       Json?
+  test_files_json    Json?
+  problem_statement  String?
+  ChallengeAttempt   ChallengeAttempt[]
+  Test               Test[]
+}
+
+model Company {
+  id         Int        @id @default(autoincrement())
+  created_at DateTime   @default(now())
+  email      String?    @unique
+  name       String
+  Lead       Lead[]
+  Profile    Profile[]
+}
+
+model Contest {
+  id                 String               @id @default(uuid())
+  created_at         DateTime             @default(now())
+  description        String
+  end_date           DateTime
+  prize              String?
+  skills             String[]
+  sponsor_logo       String?
+  sponsor_name       String?
+  start_date         DateTime
+  status             String
+  title              String
+  ContestParticipant ContestParticipant[]
+}
+
+model Feedback {
+  id            Int       @id @default(autoincrement())
+  assignment_id Int?
+  created_at    DateTime  @default(now())
+  notes         String?
+  reviewer      String?
+  score         Int?
+  TestAssignment TestAssignment? @relation(fields: [assignment_id], references: [id])
+}
+
+model Recruiter {
+  id         Int      @id @default(autoincrement())
+  created_at DateTime @default(now())
+  lead_id    String?  @unique
+  Lead       Lead?    @relation(fields: [lead_id], references: [id])
+}
+
+model Submission {
+  id            Int       @id @default(autoincrement())
+  assignment_id Int?
+  content       String?
+  created_at    DateTime  @default(now())
+  file_path     String?
+  saved_at      DateTime?
+  test_results  Json?
+  test_status   String?
+  TestAssignment TestAssignment? @relation(fields: [assignment_id], references: [id])
+  TestResult    TestResult[]
+  code_snapshot Json?
+}
+
+model TestResult {
+  id            String    @id @default(uuid())
+  assignment_id Int?
+  created_at    DateTime  @default(now())
+  logs          String?
+  screenshot_urls String[]
+  status        String
+  submission_id Int?
+  test_output   Json?
+  updated_at    DateTime  @updatedAt
+  TestAssignment TestAssignment? @relation(fields: [assignment_id], references: [id])
+  Submission    Submission? @relation(fields: [submission_id], references: [id])
+  score              Int?
+  detailedAnalysis   Json?
+  evaluationStatus   String? @default("pending")
+}
+
+model UserActivity {
+  id            String   @id @default(uuid())
+  activity_type String
+  created_at    DateTime @default(now())
+  details       Json?
+  title         String
+  user_id       String
+  DeveloperProfile DeveloperProfile @relation(fields: [user_id], references: [id])
+}
+
+model UserBadge {
+  id         String         @id @default(uuid())
+  badge_id   String
+  earned_at  DateTime       @default(now())
+  user_id    String
+  DeveloperBadge DeveloperBadge @relation(fields: [badge_id], references: [id])
+  DeveloperProfile DeveloperProfile @relation(fields: [user_id], references: [id])
+}
+
+model UserSkill {
+  id      String   @id @default(uuid())
+  level   Int
+  skill   String
+  user_id String
+  DeveloperProfile DeveloperProfile @relation(fields: [user_id], references: [id])
+}
+
+model ProctoringEvent {
+  id           String    @id @default(uuid())
+  assignmentId Int
+  type         String
+  payload      Json
+  answer       String?
+  createdAt    DateTime  @default(now())
+
+  TestAssignment TestAssignment @relation(fields: [assignmentId], references: [id])
+}

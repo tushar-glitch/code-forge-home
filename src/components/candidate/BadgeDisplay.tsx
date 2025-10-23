@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
+
 
 export interface DeveloperBadge {
   id: string;
@@ -32,19 +33,13 @@ const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
     if (userId && badgeId && !initialBadge) {
       const fetchBadge = async () => {
         try {
-          const { data, error } = await supabase
-            .from('developer_badges')
-            .select('*')
-            .eq('id', badgeId)
-            .single();
+          const data = await api.get<any>(
+            `/developer-badges?id=${badgeId}`,
+            session?.token
+          );
             
-          if (error) {
-            console.error('Error fetching badge:', error);
-            return;
-          }
-          
-          if (data) {
-            setBadge(data as DeveloperBadge);
+          if (data && data.length > 0) {
+            setBadge(data[0] as DeveloperBadge);
           }
         } catch (error) {
           console.error('Error in badge display:', error);

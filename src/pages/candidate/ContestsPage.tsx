@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -21,13 +19,14 @@ import {
 } from "lucide-react";
 import CandidateNavbar from "@/components/candidate/CandidateNavbar";
 import ContestCard, { Contest } from "@/components/candidate/ContestCard";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Removed Supabase import
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api"; // Import our new API client
 
 type ContestStatus = "all" | "upcoming" | "active" | "ended";
 
 const ContestsPage = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ContestStatus>("all");
   const [contests, setContests] = useState<Contest[]>([]);
@@ -37,36 +36,30 @@ const ContestsPage = () => {
   useEffect(() => {
     const fetchContests = async () => {
       try {
-        const { data: contestsData, error: contestsError } = await supabase
-          .from('contests')
-          .select('*')
-          .order('start_date', { ascending: true });
+        const contestsData = await api.get<any[]>(
+          `/contests`,
+          session?.token
+        );
           
-        if (contestsError) {
-          console.error('Error fetching contests:', contestsError);
-          return;
-        }
-        
         if (contestsData) {
           // Process and transform contests
           const processedContests = await Promise.all(contestsData.map(async contest => {
             // Count participants
-            const { count, error: countError } = await supabase
-              .from('contest_participants')
-              .select('*', { count: 'exact', head: true })
-              .eq('contest_id', contest.id);
+            const participants = await api.get<any[]>(
+              `/contest-participants?contest_id=${contest.id}`,
+              session?.token
+            );
+            const count = participants ? participants.length : 0;
               
             // Check if user is participating
             let isParticipating = false;
             if (user) {
-              const { data: participation, error: participationError } = await supabase
-                .from('contest_participants')
-                .select('*')
-                .eq('contest_id', contest.id)
-                .eq('user_id', user.id)
-                .single();
+              const userParticipation = await api.get<any[]>(
+                `/contest-participants?contest_id=${contest.id}&user_id=${user.id}`,
+                session?.token
+              );
                 
-              isParticipating = !!participation;
+              isParticipating = userParticipation && userParticipation.length > 0;
             }
             
             return {
@@ -97,7 +90,7 @@ const ContestsPage = () => {
     };
     
     fetchContests();
-  }, [user]);
+  }, [user, session]);
 
   // Apply filters whenever they change
   useEffect(() => {
@@ -123,22 +116,19 @@ const ContestsPage = () => {
   }, [contests, statusFilter, searchQuery]);
 
   const joinContest = async (contestId: string) => {
-    if (!user) return;
+    if (!user || !session) return;
     
     try {
       // Add user as participant
-      const { error } = await supabase
-        .from('contest_participants')
-        .insert({
+      await api.post<any>(
+        `/contest-participants`,
+        {
           user_id: user.id,
           contest_id: contestId,
-        });
+        },
+        session.token
+      );
         
-      if (error) {
-        console.error('Error joining contest:', error);
-        return;
-      }
-      
       // Update local state
       setContests(contests.map(contest => 
         contest.id === contestId 
@@ -147,15 +137,19 @@ const ContestsPage = () => {
       ));
       
       // Add activity
-      await supabase.from('user_activities').insert({
-        user_id: user.id,
-        activity_type: 'contest_joined',
-        title: `You joined the ${contests.find(c => c.id === contestId)?.title} contest`,
-        details: {
-          contestId,
-          contestName: contests.find(c => c.id === contestId)?.title
-        }
-      });
+      await api.post<any>(
+        `/user-activities`,
+        {
+          user_id: user.id,
+          activity_type: 'contest_joined',
+          title: `You joined the ${contests.find(c => c.id === contestId)?.title} contest`,
+          details: {
+            contestId,
+            contestName: contests.find(c => c.id === contestId)?.title
+          }
+        },
+        session.token
+      );
       
     } catch (error) {
       console.error('Error joining contest:', error);

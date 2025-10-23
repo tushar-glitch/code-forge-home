@@ -30,13 +30,12 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import {
-  addCandidate,
-  fetchTests,
-  generateTestAssignment,
-  sendTestInvitation,
-  Test,
-} from "@/lib/test-management-utils";
+import { Test, addCandidate, fetchTests, generateTestAssignment, sendTestInvitation } from "@/lib/test-management-utils";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import { Progress } from "@/components/ui/progress";
 
 // Animation variants
 const containerVariants = {
@@ -60,13 +59,11 @@ const itemVariants = {
   },
 };
 
-interface CandidateWithLink {
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  testLink?: string;
-  status?: string;
-}
+const formSchema = z.object({
+  email: z.string().email({ message: "Invalid email address." }),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+});
 
 const AddCandidates: React.FC = () => {
   const { user } = useAuth();
@@ -74,13 +71,20 @@ const AddCandidates: React.FC = () => {
   const [selectedTest, setSelectedTest] = useState<string>("");
   const [tests, setTests] = useState<Test[]>([]);
   const [candidates, setCandidates] = useState<CandidateWithLink[]>([]);
-  const [email, setEmail] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: "",
+      firstName: "",
+      lastName: "",
+    },
+  });
 
   useEffect(() => {
     if (!user) {
@@ -98,21 +102,8 @@ const AddCandidates: React.FC = () => {
     loadTests();
   }, [user, navigate]);
 
-  const handleAddCandidate = () => {
-    if (!email) return;
-
-    // Simple email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (candidates.find((c) => c.email === email)) {
+  const handleAddCandidate = (values: z.infer<typeof formSchema>) => {
+    if (candidates.find((c) => c.email === values.email)) {
       toast({
         title: "Duplicate email",
         description: "This email is already in the list",
@@ -122,16 +113,14 @@ const AddCandidates: React.FC = () => {
     }
 
     const newCandidate: CandidateWithLink = {
-      email,
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
+      email: values.email,
+      firstName: values.firstName || undefined,
+      lastName: values.lastName || undefined,
       status: "pending",
     };
 
     setCandidates([...candidates, newCandidate]);
-    setEmail("");
-    setFirstName("");
-    setLastName("");
+    form.reset();
   };
 
   const handleRemoveCandidate = (index: number) => {
@@ -281,7 +270,7 @@ const AddCandidates: React.FC = () => {
             email: updatedCandidates[i].email,
             first_name: updatedCandidates[i].firstName,
             last_name: updatedCandidates[i].lastName,
-          });
+          }, user.id); // Pass user.id as invitedById
 
           if (candidateId) {
             // Generate test assignment and get access link
@@ -315,16 +304,26 @@ const AddCandidates: React.FC = () => {
   };
 
   const handleSendInvitations = async () => {
-    if (candidates.length === 0 || !candidates.some((c) => c.testLink)) {
+    if (candidates.length === 0) {
       toast({
-        title: "No links to send",
-        description: "Please generate test links first",
+        title: "No candidates",
+        description: "Please add at least one candidate",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedTest) {
+      toast({
+        title: "No test selected",
+        description: "Please select a test first",
         variant: "destructive",
       });
       return;
     }
 
     setIsSending(true);
+    setProgress(0);
 
     const selectedTestData = tests.find((t) => t.id === selectedTest);
     if (!selectedTestData || !selectedTestData.test_title) {
@@ -343,8 +342,35 @@ const AddCandidates: React.FC = () => {
     for (let i = 0; i < updatedCandidates.length; i++) {
       const candidate = updatedCandidates[i];
 
-      if (candidate.testLink && candidate.status !== "sent") {
-        try {
+      try {
+        if (!candidate.testLink) {
+          updatedCandidates[i].status = "generating";
+          setCandidates([...updatedCandidates]);
+
+          const candidateId = await addCandidate({
+            email: candidate.email,
+            first_name: candidate.firstName,
+            last_name: candidate.lastName,
+          }, user.id); // Pass user.id as invitedById
+
+          if (candidateId) {
+            const accessLink = await generateTestAssignment(
+              selectedTest,
+              candidateId
+            );
+
+            if (accessLink) {
+              candidate.testLink = `${window.location.origin}/test/${accessLink}`;
+              candidate.status = "ready";
+              setCandidates([...updatedCandidates]);
+            }
+          }
+        }
+
+        if (candidate.testLink && candidate.status !== "sent") {
+          updatedCandidates[i].status = "sending";
+          setCandidates([...updatedCandidates]);
+
           const success = await sendTestInvitation(
             candidate.email,
             selectedTestData.test_title,
@@ -355,14 +381,17 @@ const AddCandidates: React.FC = () => {
           if (success) {
             updatedCandidates[i].status = "sent";
             sentCount++;
+            setCandidates([...updatedCandidates]);
           }
-        } catch (error) {
-          console.error("Error sending invitation:", error);
         }
+      } catch (error) {
+        console.error("Error processing candidate:", error);
+        updatedCandidates[i].status = "failed";
+        setCandidates([...updatedCandidates]);
       }
+      setProgress(((i + 1) / updatedCandidates.length) * 100);
     }
 
-    setCandidates(updatedCandidates);
     setIsSending(false);
 
     toast({
@@ -447,45 +476,63 @@ const AddCandidates: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Manual Entry */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">First Name (Optional)</Label>
-                    <Input
-                      id="firstName"
-                      placeholder="John"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleAddCandidate)} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Label>First Name (Optional)</Label>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Label>Last Name (Optional)</Label>
+                          <FormControl>
+                            <Input placeholder="Doe" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Label>Email Address*</Label>
+                          <FormControl>
+                            <Input placeholder="john@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name (Optional)</Label>
-                    <Input
-                      id="lastName"
-                      placeholder="Doe"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                    />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => form.reset()}>
+                      Clear
+                    </Button>
+                    <Button type="submit">Add Candidate</Button>
                   </div>
-                  <div>
-                    <Label htmlFor="email">Email Address*</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="email"
-                        placeholder="john@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleAddCandidate();
-                          }
-                        }}
-                      />
-                      <Button onClick={handleAddCandidate}>Add</Button>
-                    </div>
-                  </div>
+                </form>
+              </Form>
+
+              {isSending && (
+                <div className="space-y-2">
+                  <Label>Sending invitations...</Label>
+                  <Progress value={progress} />
+                  <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
                 </div>
-              </div>
+              )}
 
               {/* CSV Upload */}
               <div className="space-y-4">
@@ -604,32 +651,10 @@ const AddCandidates: React.FC = () => {
                       Export List
                     </Button>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={handleGenerateLinks}
-                        disabled={
-                          isGenerating ||
-                          candidates.length === 0 ||
-                          !selectedTest
-                        }
-                      >
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Link className="mr-2 h-4 w-4" />
-                            Generate Links
-                          </>
-                        )}
-                      </Button>
+
                       <Button
                         onClick={handleSendInvitations}
-                        disabled={
-                          isSending || !candidates.some((c) => c.testLink)
-                        }
+                        disabled={isSending || candidates.length === 0}
                       >
                         {isSending ? (
                           <>

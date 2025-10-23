@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,14 +14,21 @@ import Submissions from "./pages/dashboard/Submissions";
 import TestManagement from "./pages/dashboard/TestManagement";
 import Settings from "./pages/dashboard/Settings";
 import InterviewWorkspace from "./pages/InterviewWorkspace";
-import ProjectPreview from "./pages/ProjectPreview";
-import ProjectManagement from "./pages/dashboard/ProjectManagement";
+
+import TestDetails from "./pages/dashboard/TestDetails";
 import GetStarted from "./pages/GetStarted";
 import CandidateDashboard from "./pages/candidate/CandidateDashboard";
 import ChallengesPage from "./pages/candidate/ChallengesPage";
 import ContestsPage from "./pages/candidate/ContestsPage";
 import LeaderboardPage from "./pages/candidate/LeaderboardPage";
 import ProfilePage from "./pages/candidate/ProfilePage";
+import Profile from "./pages/dashboard/Profile";
+import Billing from "./pages/dashboard/Billing";
+import TestTakerWorkspace from "./pages/TestTakerWorkspace";
+import ThankYou from "./pages/ThankYou";
+import Welcome from "./pages/Welcome";
+import EvaluationResult from "./pages/dashboard/EvaluationResult";
+import TestOverviewPage from "./pages/dashboard/TestOverviewPage";
 
 // Role-based protected route component
 interface ProtectedRouteProps {
@@ -63,14 +69,15 @@ const App = () => (
             <Route path="/signin" element={<SignIn />} />
             <Route path="/candidate-signin" element={<SignIn userType="candidate" />} />
             <Route path="/get-started" element={<GetStarted />} />
+            <Route path="/test/:accessLink" element={<TestTakerWorkspace />} />
+            <Route path="/thank-you" element={<ThankYou />} />
+            <Route path="/welcome/:accessLink" element={<Welcome />} />
             
             {/* Candidate Routes */}
             <Route 
               path="/interview/:assignmentId" 
               element={
-                <ProtectedRoute allowedRoles={["candidate"]}>
                   <InterviewWorkspace />
-                </ProtectedRoute>
               } 
             />
 
@@ -150,6 +157,14 @@ const App = () => (
               }
             />
             <Route
+              path="/dashboard/submissions/:submissionId/evaluation"
+              element={
+                <ProtectedRoute allowedRoles={["recruiter"]}>
+                  <EvaluationResult />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/dashboard/tests"
               element={
                 <ProtectedRoute allowedRoles={["recruiter"]}>
@@ -158,13 +173,31 @@ const App = () => (
               }
             />
             <Route
-              path="/dashboard/projects"
+              path="/dashboard/tests/:testId/submissions"
               element={
                 <ProtectedRoute allowedRoles={["recruiter"]}>
-                  <ProjectManagement />
+                  <Submissions />
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/dashboard/tests/:testId"
+              element={
+                <ProtectedRoute allowedRoles={["recruiter"]}>
+                  <TestDetails />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/dashboard/tests/:testId/overview"
+              element={
+                <ProtectedRoute allowedRoles={["recruiter"]}>
+                  <TestOverviewPage />
+                </ProtectedRoute>
+              }
+            />
+
             <Route
               path="/dashboard/settings"
               element={
@@ -173,16 +206,24 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            
-            {/* Project Preview - Recruiter Only */}
             <Route
-              path="/project-preview/:projectId"
+              path="/dashboard/profile"
               element={
                 <ProtectedRoute allowedRoles={["recruiter"]}>
-                  <ProjectPreview />
+                  <Profile />
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/dashboard/billing"
+              element={
+                <ProtectedRoute allowedRoles={["recruiter"]}>
+                  <Billing />
+                </ProtectedRoute>
+              }
+            />
+            
+
 
             {/* Catch-all Route */}
             <Route path="*" element={<NotFound />} />

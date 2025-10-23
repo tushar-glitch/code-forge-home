@@ -10,19 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
+
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 // Fetch companies function
 const fetchCompanies = async () => {
-  const { data, error } = await supabase
-    .from('companies')
-    .select('id, name')
-    .order('name', { ascending: true });
-
-  if (error) throw error;
+  const data = await api.get<any[]>(
+    `/companies`
+  );
   return data;
 };
 
@@ -79,55 +77,25 @@ const GetStarted = () => {
       
       // If "other" is selected, create a new company
       if (data.companyId === "other" && data.otherCompany) {
-        const { data: newCompany, error: companyError } = await supabase
-          .from("companies")
-          .insert({
+        const newCompany = await api.post<any>(
+          `/companies`,
+          {
             name: data.otherCompany,
-          })
-          .select('id')
-          .single();
-
-        if (companyError) throw companyError;
+          }
+        );
         companyId = newCompany.id.toString();
       }
 
-      // Insert lead data into Supabase
-      const { data: leadData, error } = await supabase
-        .from("leads")
-        .insert({
+      // Insert lead data into our backend
+      await api.post<any>(
+        `/leads`,
+        {
           email: data.email,
           role: data.role,
           hiring_count: data.hiringCount,
           company_id: parseInt(companyId)
-        })
-        .select('id')
-        .single();
-
-      if (error) throw error;
-
-      // Call the edge function to create a user and send email
-      const response = await fetch(
-        "https://bnreszjivetxuxsdwkxv.supabase.co/functions/v1/create-recruiter",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: data.email,
-            role: data.role,
-            hiringCount: data.hiringCount,
-            leadId: leadData.id,
-            companyId: companyId,
-          }),
         }
       );
-
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to create account");
-      }
 
       // Show success message with Sonner toast (more modern UI)
       toast("Thanks for your interest!", {

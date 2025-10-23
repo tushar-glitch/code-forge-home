@@ -89,12 +89,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       path: "/dashboard/tests",
       active: title === "Test Management" 
     },
-    { 
-      title: "Projects", 
-      icon: FolderKanban, 
-      path: "/dashboard/projects",
-      active: title === "Projects" 
-    },
+
     { 
       title: "Settings", 
       icon: SettingsIcon, 

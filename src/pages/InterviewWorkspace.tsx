@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -13,7 +12,7 @@ import { atomDark } from "@codesandbox/sandpack-themes";
 import { Button } from "@/components/ui/button";
 import { Loader2, Bot, Code2, MessageSquare, Sparkles, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Removed Supabase import
 import { useAuth } from "@/context/AuthContext";
 import { SandpackFileExplorer } from "sandpack-file-explorer";
 import {
@@ -21,6 +20,7 @@ import {
   updateAssignmentStatus,
 } from "@/lib/test-management-utils";
 import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
+import { api } from "@/lib/api"; // Import our new API client
 
 // Type definition for project files
 type ProjectFiles = Record<string, string>;
@@ -66,7 +66,7 @@ h1 {
 const InterviewWorkspace = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { assignmentId } = useParams();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -83,48 +83,53 @@ const InterviewWorkspace = () => {
   const [testStatus, setTestStatus] = useState<"pending" | "running" | "passed" | "failed" | "not_run">("not_run");
   const [testResults, setTestResults] = useState<any>(null);
   const [submissionId, setSubmissionId] = useState<number | null>(null);
+  const [accessLink, setAccessLink] = useState<string | null>(null); // New state for accessLink
 
   useEffect(() => {
-    // Check if user is authenticated
-    if (!user) {
-      navigate("/signin");
-      return;
-    }
-
     const loadAssignment = async () => {
       setIsLoading(true);
       try {
         // If we have an assignmentId, fetch the assignment
         if (assignmentId) {
-          const assignmentDetails = await getAssignmentDetails(
-            parseInt(assignmentId)
-          );
+          // Use getAssignmentDetailsByAccessLink if user is not logged in, otherwise getAssignmentDetails
+          const assignmentDetails = user 
+            ? await getAssignmentDetails(parseInt(assignmentId)) 
+            : await api.get<any>(`/test-assignments/${assignmentId}`); // Assuming this endpoint is public or handles accessLink
 
           if (!assignmentDetails) {
             throw new Error("Assignment not found");
           }
 
           setAssignmentData(assignmentDetails);
+          setAccessLink(assignmentDetails.access_link); // Store accessLink
 
           // Mark the assignment as started if not already
           if (assignmentDetails.status === "pending") {
-            await updateAssignmentStatus(
-              parseInt(assignmentId),
-              "in-progress",
-              true,
-              false
-            );
+            // Use updateAssignmentStatus (by accessLink) if not logged in, otherwise updateAssignmentStatusById
+            if (user) {
+              await updateAssignmentStatus(
+                parseInt(assignmentId),
+                "in-progress",
+                true,
+                false
+              );
+            } else if (assignmentDetails.access_link) {
+              await updateAssignmentStatus(
+                assignmentDetails.access_link,
+                "in-progress",
+                true,
+                false
+              );
+            }
           }
 
           // Get the project data for this test
           if (assignmentDetails.test?.project_id) {
-            const { data: project, error: projectError } = await supabase
-              .from("code_projects")
-              .select("*")
-              .eq("id", assignmentDetails.test.project_id)
-              .single();
+            const project = await api.get<any>(
+              `/code-projects/${assignmentDetails.test.project_id}`,
+              session?.token // This will need to be updated to use accessLink
+            );
 
-            if (projectError) throw projectError;
             setProjectData(project);
 
             // Load project files from project data if available
@@ -157,13 +162,10 @@ const InterviewWorkspace = () => {
           }
 
           // Check for existing submissions
-          const { data: submissions, error: submissionsError } = await supabase
-            .from("submissions")
-            .select("*")
-            .eq("assignment_id", parseInt(assignmentId))
-            .order("created_at", { ascending: false });
-
-          if (submissionsError) throw submissionsError;
+          const submissions = await api.get<any[]>(
+            `/submissions?assignment_id=${assignmentId}`,
+            session?.token // This will need to be updated to use accessLink
+          );
 
           // If there are submissions, load the most recent one
           if (submissions && submissions.length > 0) {
@@ -205,7 +207,7 @@ const InterviewWorkspace = () => {
         console.error("Error loading assignment:", error);
         toast({
           title: "Error",
-          description: "Failed to load the assignment data",
+          description: error.message || "Failed to load the assignment data",
           variant: "destructive",
         });
       } finally {
@@ -223,14 +225,11 @@ const InterviewWorkspace = () => {
     if (testStatus === "running" && submissionId) {
       interval = setInterval(async () => {
         try {
-          const { data: submission, error } = await supabase
-            .from("submissions")
-            .select("test_status, test_results")
-            .eq("id", submissionId)
-            .single();
+          const submission = await api.get<any>(
+            `/submissions/${submissionId}`,
+            session?.token
+          );
             
-          if (error) throw error;
-          
           if (submission && submission.test_status !== "running") {
             setTestStatus(submission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
             setTestResults(submission.test_results);
@@ -251,14 +250,16 @@ const InterviewWorkspace = () => {
     setAutosaveStatus("saving");
     if (assignmentId) {
       try {
-        const { data: submission, error } = await supabase.from("submissions").insert({
-          assignment_id: parseInt(assignmentId),
-          content: JSON.stringify(files),
-          saved_at: new Date().toISOString(),
-        }).select().single();
+        const submission = await api.post<any>(
+          `/submissions`,
+          {
+            assignment_id: parseInt(assignmentId),
+            content: JSON.stringify(files),
+            saved_at: new Date().toISOString(),
+          },
+          session?.token
+        );
 
-        if (error) throw error;
-        
         setSubmissionId(submission.id);
         setAutosaveStatus("saved");
       } catch (error) {
@@ -282,22 +283,24 @@ const InterviewWorkspace = () => {
     
     try {
       // Update the submission test status
-      await supabase
-        .from("submissions")
-        .update({ test_status: "running" })
-        .eq("id", submissionId);
+      await api.put<any>(
+        `/submissions/${submissionId}`,
+        { test_status: "running" },
+        session?.token
+      );
         
-      // Call the edge function to create GitHub repo and run tests
-      const { data, error } = await supabase.functions.invoke("create-github-repo", {
-        body: {
+      // Call the backend endpoint to create GitHub repo and run tests
+      // This endpoint needs to be created in the backend
+      await api.post<any>(
+        `/github/create-repo-and-run-tests`,
+        {
           assignment_id: parseInt(assignmentId),
           submission_id: submissionId,
           project_files: projectFiles,
           test_id: assignmentData.test.id
-        }
-      });
-      
-      if (error) throw error;
+        },
+        session?.token
+      );
       
       toast({
         title: "Tests Started",
@@ -333,17 +336,16 @@ const InterviewWorkspace = () => {
       let finalSubmissionId = submissionId;
       
       if (!finalSubmissionId) {
-        const { data: submission, error: submissionError } = await supabase
-          .from("submissions")
-          .insert({
+        const submission = await api.post<any>(
+          `/submissions`,
+          {
             assignment_id: parseInt(assignmentId),
             content: JSON.stringify(projectFiles),
             saved_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
+          },
+          session?.token
+        );
   
-        if (submissionError) throw submissionError;
         finalSubmissionId = submission.id;
       }
       

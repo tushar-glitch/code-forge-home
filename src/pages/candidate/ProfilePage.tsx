@@ -21,7 +21,8 @@ import ProgressTracker from "@/components/candidate/ProgressTracker";
 import BadgeDisplay, { DeveloperBadge } from "@/components/candidate/BadgeDisplay";
 import ActivityCard, { Activity } from "@/components/candidate/ActivityCard";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
+
 
 const ProfilePage = () => {
   const { user } = useAuth();
@@ -114,31 +115,31 @@ const ProfilePage = () => {
         }
         
         // Fetch user skills
-        const { data: skillsData, error: skillsError } = await supabase
-          .from('user_skills')
-          .select('skill')
-          .eq('user_id', user.id);
+        const skillsData = await api.get<any[]>(
+          `/user-skills?user_id=${user.id}`,
+          session?.token
+        );
           
-        if (!skillsError && skillsData) {
+        if (skillsData) {
           setSkills(skillsData.map(s => s.skill));
         }
         
         // Fetch user badges
         setLoadingBadges(true);
-        const { data: userBadgesData, error: userBadgesError } = await supabase
-          .from('user_badges')
-          .select('badge_id')
-          .eq('user_id', user.id);
+        const userBadgesData = await api.get<any[]>(
+          `/user-badges?user_id=${user.id}`,
+          session?.token
+        );
           
-        if (!userBadgesError && userBadgesData && userBadgesData.length > 0) {
+        if (userBadgesData && userBadgesData.length > 0) {
           const badgeIds = userBadgesData.map(ub => ub.badge_id);
           
-          const { data: badgesData, error: badgesError } = await supabase
-            .from('developer_badges')
-            .select('*')
-            .in('id', badgeIds);
+          const badgesData = await api.get<any[]>(
+            `/developer-badges?id=${badgeIds.join(',')}`,
+            session?.token
+          );
             
-          if (!badgesError && badgesData) {
+          if (badgesData) {
             setBadges(badgesData as DeveloperBadge[]);
           }
         }
@@ -146,14 +147,12 @@ const ProfilePage = () => {
         
         // Fetch user activities
         setLoadingActivities(true);
-        const { data: activitiesData, error: activitiesError } = await supabase
-          .from('user_activities')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5);
+        const activitiesData = await api.get<any[]>(
+          `/user-activities?user_id=${user.id}&_order=created_at&_sort=desc&_limit=5`,
+          session?.token
+        );
           
-        if (!activitiesError && activitiesData) {
+        if (activitiesData) {
           setActivities(activitiesData.map(a => ({
             ...a,
             type: a.activity_type,
@@ -163,27 +162,26 @@ const ProfilePage = () => {
         setLoadingActivities(false);
         
         // Calculate stats
-        const { data: challengeData, error: challengeError } = await supabase
-          .from('challenge_attempts')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'completed');
+        const challengeData = await api.get<any[]>(
+          `/challenge-attempts?user_id=${user.id}&status=completed`,
+          session?.token
+        );
           
-        const { data: contestData, error: contestError } = await supabase
-          .from('contest_participants')
-          .select('*')
-          .eq('user_id', user.id);
+        const contestData = await api.get<any[]>(
+          `/contest-participants?user_id=${user.id}`,
+          session?.token
+        );
           
         // Get user rank
-        const { count: higherRanked, error: rankError } = await supabase
-          .from('developer_profiles')
-          .select('*', { count: 'exact', head: true })
-          .gt('xp_points', profileData?.xp_points || 0);
+        const higherRankedUsers = await api.get<any[]>(
+          `/developer-profiles?xp_points_gt=${profile.xpPoints || 0}`,
+          session?.token
+        );
           
         setStats({
           challengesCompleted: challengeData?.length || 0,
           contestsParticipated: contestData?.length || 0,
-          rank: (higherRanked || 0) + 1,
+          rank: (higherRankedUsers?.length || 0) + 1,
         });
         
       } catch (error) {
@@ -203,21 +201,18 @@ const ProfilePage = () => {
       setSavingProfile(true);
       
       // Update profile in database
-      const { error } = await supabase
-        .from('developer_profiles')
-        .update({
+      await api.put(
+        `/developer-profiles/${user.id}`,
+        {
           username: formData.username,
           full_name: formData.fullName,
           bio: formData.bio,
           github_url: formData.githubUrl,
           linkedin_url: formData.linkedinUrl,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-        
-      if (error) {
-        throw error;
-      }
+        },
+        session?.token
+      );
       
       // Update local state
       setProfile(prev => ({
@@ -248,16 +243,14 @@ const ProfilePage = () => {
       }
       
       // Add skill to database
-      const { error } = await supabase
-        .from('user_skills')
-        .insert({
+      await api.post(
+        `/user-skills`,
+        {
           user_id: user.id,
           skill: newSkill.trim(),
-        });
-        
-      if (error) {
-        throw error;
-      }
+        },
+        session?.token
+      );
       
       // Update local state
       setSkills(prev => [...prev, newSkill.trim()]);
@@ -272,15 +265,10 @@ const ProfilePage = () => {
     
     try {
       // Remove skill from database
-      const { error } = await supabase
-        .from('user_skills')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('skill', skill);
-        
-      if (error) {
-        throw error;
-      }
+      await api.delete(
+        `/user-skills?user_id=${user.id}&skill=${skill}`,
+        session?.token
+      );
       
       // Update local state
       setSkills(prev => prev.filter(s => s !== skill));

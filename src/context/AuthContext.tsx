@@ -1,19 +1,28 @@
-
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Session, User } from "@supabase/supabase-js";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
 
 // Define user roles
 export type UserRole = "recruiter" | "candidate";
 
+// Custom User and Session types for our backend
+interface AuthUser {
+  id: string;
+  email: string;
+  role?: UserRole;
+}
+
+interface AuthSession {
+  token: string;
+  userId: string;
+}
+
 type AuthContextType = {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  session: AuthSession | null;
   isLoading: boolean;
   userRole: UserRole | null;
-  signIn: (provider: "google" | "github" | string, options?: any) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, role?: UserRole, firstName?: string, lastName?: string) => Promise<any>;
   signOut: () => Promise<void>;
@@ -41,8 +50,8 @@ const getRedirectPath = (role: UserRole | null): string => {
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const navigate = useNavigate();
@@ -50,22 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkUserRole = async (): Promise<UserRole | null> => {
     if (!user) return null;
-    
-    // Check if user is in candidates table
-    const { data: candidateData } = await supabase
-      .from('candidates')
-      .select('id')
-      .eq('email', user.email)
-      .maybeSingle();
-    
-    if (candidateData) {
-      setUserRole("candidate");
-      return "candidate";
+    try {
+      // Call backend to get user role
+      const response = await api.get<{ role: UserRole }>(`/users/${user.id}/role`, session?.token);
+      setUserRole(response.role);
+      // Update user object with role
+      setUser(prevUser => prevUser ? { ...prevUser, role: response.role } : null);
+      localStorage.setItem('userRole', response.role);
+      return response.role;
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      setUserRole(null);
+      localStorage.removeItem('userRole');
+      return null;
     }
-    
-    // If not a candidate, they're a recruiter
-    setUserRole("recruiter");
-    return "recruiter";
   };
 
   // Check if user is authorized for current path
@@ -117,55 +124,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [location.pathname, user, userRole, isLoading]);
 
+  // Initial load: check for existing token in localStorage
   useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    const loadUser = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUserId = localStorage.getItem('userId');
+      const storedEmail = localStorage.getItem('email');
+      const storedRole = localStorage.getItem('userRole') as UserRole | null;
 
-        // Reset role when auth state changes
-        if (!session?.user) {
-          setUserRole(null);
+      if (storedToken && storedUserId && storedEmail) {
+        setSession({ token: storedToken, userId: storedUserId });
+        setUser({ id: storedUserId, email: storedEmail, role: storedRole || undefined });
+        if (storedRole) {
+          setUserRole(storedRole);
+        } else {
+          // If role not in localStorage, fetch it
+          await checkUserRole();
         }
+        setIsLoading(false);
+      } else {
+        setIsLoading(false);
       }
-    );
-
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-      
-      // Check role if user is logged in
-      if (session?.user) {
-        checkUserRole();
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    };
+    loadUser();
   }, []);
-
-  const signIn = async (provider: "google" | "github" | string, options?: any) => {
-    try {
-      await supabase.auth.signInWithOAuth({
-        provider: provider as any,
-        options: options || { redirectTo: window.location.origin },
-      });
-    } catch (error) {
-      console.error("Error signing in:", error);
-      throw error;
-    }
-  };
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      const result = await supabase.auth.signInWithPassword({ email, password });
-      
-      // Check role after signing in
-      if (result.data.user) {
-        await checkUserRole();
-      }
+      const result = await api.login<{ token: string; userId: string; role: UserRole }>({
+        email,
+        password,
+      });
+
+      localStorage.setItem('token', result.token);
+      localStorage.setItem('userId', result.userId);
+      localStorage.setItem('email', email); // Store email for user object
+      localStorage.setItem('userRole', result.role); // Store role
+
+      setSession({ token: result.token, userId: result.userId });
+      setUser({ id: result.userId, email, role: result.role });
+      setUserRole(result.role);
       
       return result;
     } catch (error) {
@@ -182,25 +180,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     lastName?: string
   ) => {
     try {
-      const result = await supabase.auth.signUp({ 
-        email, 
+      const result = await api.register<{ token: string; userId: string; role: UserRole }>({
+        email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}${role === "recruiter" ? "/dashboard" : "/candidate/dashboard"}`,
-        }
+        role, // Pass role to backend for user creation and candidate/recruiter linking
+        firstName,
+        lastName,
       });
 
-      // If it's a candidate, create an entry in the candidates table
-      if (role === "candidate" && result.data.user) {
-        await supabase
-          .from('candidates')
-          .insert({
-            email,
-            first_name: firstName || null,
-            last_name: lastName || null
-          });
-      }
-      
+      localStorage.setItem('token', result.token);
+      localStorage.setItem('userId', result.userId);
+      localStorage.setItem('email', email);
+      localStorage.setItem('userRole', result.role); // Store role
+
+      setSession({ token: result.token, userId: result.userId });
+      setUser({ id: result.userId, email, role: result.role });
+      setUserRole(result.role); // Set role immediately after signup
+
       return result;
     } catch (error) {
       console.error("Error signing up:", error);
@@ -210,8 +206,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
-      // Explicitly update state after sign out
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('email');
+      localStorage.removeItem('userRole'); // Remove role
       setUser(null);
       setSession(null);
       setUserRole(null);
@@ -228,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session, 
         isLoading, 
         userRole, 
-        signIn, 
         signInWithEmail, 
         signUp, 
         signOut,

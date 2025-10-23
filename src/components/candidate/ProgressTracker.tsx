@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from "react";
 import { Progress } from "@/components/ui/progress";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
+
 
 interface ProgressTrackerProps {
   currentXP: number;
@@ -25,21 +26,16 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
     if (userId) {
       const fetchUserProgress = async () => {
         try {
-          const { data, error } = await supabase
-            .from('developer_profiles')
-            .select('xp_points, next_level_xp, level')
-            .eq('id', userId)
-            .single();
+          const data = await api.get<any>(
+            `/developer-profiles?id=${userId}`,
+            session?.token
+          );
 
-          if (error) {
-            console.error('Error fetching user progress:', error);
-            return;
-          }
-
-          if (data) {
-            setCurrentXP(data.xp_points);
-            setNextLevelXP(data.next_level_xp);
-            setLevel(data.level);
+          if (data && data.length > 0) {
+            const profileData = data[0];
+            setCurrentXP(profileData.xp_points);
+            setNextLevelXP(profileData.next_level_xp);
+            setLevel(profileData.level);
           }
         } catch (error) {
           console.error('Error in progress tracker:', error);

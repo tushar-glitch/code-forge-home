@@ -1,5 +1,6 @@
 
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,8 @@ interface TopNavProps {
 }
 
 const TopNav: React.FC<TopNavProps> = ({ title }) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -82,11 +84,11 @@ const TopNav: React.FC<TopNavProps> = ({ title }) => {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">Billing</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">Settings</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/dashboard/profile")}>Profile</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/dashboard/billing")}>Billing</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/dashboard/settings")}>Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">Logout</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={signOut}>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

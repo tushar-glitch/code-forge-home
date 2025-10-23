@@ -17,7 +17,8 @@ import { Search, Trophy, Star, Users, LayoutDashboard, Loader2 } from "lucide-re
 import CandidateNavbar from "@/components/candidate/CandidateNavbar";
 import LeaderboardEntry, { LeaderboardUser } from "@/components/candidate/LeaderboardEntry";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
+
 
 type TimeFrame = "all" | "month" | "week";
 type SkillFilter = "all" | string;
@@ -37,16 +38,10 @@ const LeaderboardPage = () => {
     const fetchLeaderboard = async () => {
       try {
         // Fetch all developer profiles ordered by XP
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('developer_profiles')
-          .select('id, username, xp_points, level, avatar_url')
-          .order('xp_points', { ascending: false })
-          .limit(50);
-          
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-          return;
-        }
+        const profilesData = await api.get<any[]>(
+          `/developer-profiles?_order=xp_points&_sort=desc&_limit=50`,
+          session?.token
+        );
         
         // Collect all skills for filtering
         const skillsSet = new Set<string>();
@@ -55,16 +50,21 @@ const LeaderboardPage = () => {
         if (profilesData) {
           const processedLeaderboard = await Promise.all(profilesData.map(async (profile, index) => {
             // Fetch user badges
-            const { data: userBadges, error: badgesError } = await supabase
-              .from('user_badges')
-              .select('badge_id, developer_badges!inner(name, rarity)')
-              .eq('user_id', profile.id);
+            const userBadges = await api.get<any[]>(
+              `/user-badges?user_id=${profile.id}`,
+              session?.token
+            );
+              
+            const developerBadges = userBadges ? await api.get<any[]>(
+              `/developer-badges?id=${userBadges.map(ub => ub.badge_id).join(',')}`,
+              session?.token
+            ) : [];
               
             // Fetch user skills
-            const { data: userSkills, error: skillsError } = await supabase
-              .from('user_skills')
-              .select('skill')
-              .eq('user_id', profile.id);
+            const userSkills = await api.get<any[]>(
+              `/user-skills?user_id=${profile.id}`,
+              session?.token
+            );
               
             // Add skills to the set for filtering
             if (userSkills) {
@@ -94,38 +94,43 @@ const LeaderboardPage = () => {
           
           // If current user wasn't found in the top 50, fetch separately
           if (user && !profilesData.some(p => p.id === user.id)) {
-            const { data: userProfile, error: userError } = await supabase
-              .from('developer_profiles')
-              .select('id, username, xp_points, level, avatar_url')
-              .eq('id', user.id)
-              .single();
+            const userProfile = await api.get<any>(
+              `/developer-profiles?id=${user.id}`,
+              session?.token
+            );
               
-            if (!userError && userProfile) {
+            if (userProfile && userProfile.length > 0) {
+              const currentUserProfile = userProfile[0];
               // Count users with higher score
-              const { count, error: countError } = await supabase
-                .from('developer_profiles')
-                .select('*', { count: 'exact', head: true })
-                .gt('xp_points', userProfile.xp_points);
+              const higherRankUsers = await api.get<any[]>(
+                `/developer-profiles?xp_points_gt=${currentUserProfile.xp_points}`,
+                session?.token
+              );
+              const count = higherRankUsers ? higherRankUsers.length : 0;
                 
               // Fetch user badges
-              const { data: userBadges } = await supabase
-                .from('user_badges')
-                .select('badge_id, developer_badges!inner(name)')
-                .eq('user_id', user.id);
+              const userBadges = await api.get<any[]>(
+                `/user-badges?user_id=${user.id}`,
+                session?.token
+              );
+              const developerBadges = userBadges ? await api.get<any[]>(
+                `/developer-badges?id=${userBadges.map(ub => ub.badge_id).join(',')}`,
+                session?.token
+              ) : [];
                 
               // Fetch user skills
-              const { data: userSkills } = await supabase
-                .from('user_skills')
-                .select('skill')
-                .eq('user_id', user.id);
+              const userSkills = await api.get<any[]>(
+                `/user-skills?user_id=${user.id}`,
+                session?.token
+              );
                 
               setCurrentUser({
-                id: userProfile.id,
-                username: userProfile.username,
-                avatarUrl: userProfile.avatar_url || undefined,
-                score: userProfile.xp_points,
+                id: currentUserProfile.id,
+                username: currentUserProfile.username,
+                avatarUrl: currentUserProfile.avatar_url || undefined,
+                score: currentUserProfile.xp_points,
                 rank: (count || 0) + 1,
-                badges: userBadges ? userBadges.map(b => b.developer_badges.name) : [],
+                badges: developerBadges ? developerBadges.map(b => b.name) : [],
                 skillTags: userSkills ? userSkills.map(s => s.skill) : []
               });
             }

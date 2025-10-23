@@ -22,8 +22,9 @@ import {
 } from "lucide-react";
 import CandidateNavbar from "@/components/candidate/CandidateNavbar";
 import ChallengeCard, { Challenge } from "@/components/candidate/ChallengeCard";
-import { supabase } from "@/integrations/supabase/client";
+
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
 
 // Challenge filter types
 type FilterCategory = "all" | "completed" | "inProgress" | "notStarted";
@@ -50,41 +51,37 @@ const ChallengesPage: React.FC = () => {
       }
 
       try {
-        const { data: challengesData, error: challengesError } = await supabase
-          .from('challenges')
-          .select(`
-            *,
-            challenge_attempts(user_id, status),
-            challenge_attempts!challenge_attempts_challenge_id_fkey(count)
-          `)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
-
-        if (challengesError) {
-          console.error('Error fetching challenges:', challengesError);
-          return;
-        }
+        const challengesData = await api.get<any[]>(
+          `/challenges?is_active=true&_order=created_at&_sort=desc`,
+          session?.token
+        );
 
         if (challengesData) {
           // Extract all unique tags
           const allTags = new Set<string>();
           
-          const formattedChallenges = challengesData.map(challenge => {
+          const formattedChallenges = await Promise.all(challengesData.map(async (challenge) => {
             // Add tags to the set
             challenge.tags.forEach(tag => allTags.add(tag));
             
             // Check if the current user has an attempt on this challenge
-            const userAttempt = challenge.challenge_attempts.find((attempt: any) => 
-              attempt.user_id === user.id
+            const userAttempts = await api.get<any[]>(
+              `/challenge-attempts?challenge_id=${challenge.id}&user_id=${user.id}`,
+              session?.token
             );
+            const userAttempt = userAttempts && userAttempts.length > 0 ? userAttempts[0] : null;
             
             // Count total attempts
-            const totalAttempts = challenge.challenge_attempts?.length || 0;
+            const allAttempts = await api.get<any[]>(
+              `/challenge-attempts?challenge_id=${challenge.id}`,
+              session?.token
+            );
+            const totalAttempts = allAttempts ? allAttempts.length : 0;
             
             // Count successful solves
-            const solvedCount = challenge.challenge_attempts?.filter((attempt: any) =>
+            const solvedCount = allAttempts ? allAttempts.filter((attempt) =>
               attempt.status === 'completed'
-            ).length || 0;
+            ).length : 0;
             
             // Calculate days active
             const createdDate = new Date(challenge.created_at);
@@ -104,7 +101,7 @@ const ChallengesPage: React.FC = () => {
               topContributors: [], // Would need additional query to get this
               isCompleted: userAttempt?.status === 'completed'
             };
-          });
+          }));
 
           setChallenges(formattedChallenges as Challenge[]);
           setFilteredChallenges(formattedChallenges as any);

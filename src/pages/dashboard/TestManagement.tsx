@@ -268,6 +268,13 @@ const TestManagement: React.FC = () => {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
                             className="cursor-pointer"
+                            onClick={() => navigate(`/dashboard/tests/${test.id}/overview`)}
+                          >
+                            <Users className="mr-2 h-4 w-4" />
+                            View Overview
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="cursor-pointer"
                             onClick={() => handleEdit(test.id)}
                           >
                             <Pencil className="mr-2 h-4 w-4" />

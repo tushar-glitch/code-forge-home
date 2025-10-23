@@ -28,9 +28,10 @@ import ContestCard, { Contest } from "@/components/candidate/ContestCard";
 import SponsoredBanner from "@/components/candidate/SponsoredBanner";
 import ProfileSummary, { ProfileData } from "@/components/candidate/ProfileSummary";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+
 import { format } from "date-fns";
 import { TestAssignment, getCandidateAssignments } from "@/lib/test-management-utils";
+import { api } from "@/lib/api";
 
 const CandidateDashboard = () => {
   const navigate = useNavigate();
@@ -56,65 +57,61 @@ const CandidateDashboard = () => {
 
       try {
         // Fetch user profile
-        const { data: profileData, error: profileError } = await supabase
-          .from('developer_profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
+        const profileData = await api.get<any>(
+          `/developer-profiles?userId=${user.id}`,
+          session?.token
+        );
 
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-        } else if (profileData) {
+        if (profileData && profileData.length > 0) {
+          const userProfile = profileData[0];
           // Fetch user badges
-          const { data: userBadgesData, error: userBadgesError } = await supabase
-            .from('user_badges')
-            .select('badge_id')
-            .eq('user_id', user.id);
+          const userBadgesData = await api.get<any[]>(
+            `/user-badges?user_id=${user.id}`,
+            session?.token
+          );
 
           let userBadges: DeveloperBadge[] = [];
           
-          if (!userBadgesError && userBadgesData.length > 0) {
+          if (userBadgesData && userBadgesData.length > 0) {
             const badgeIds = userBadgesData.map(ub => ub.badge_id);
             
-            const { data: badgesData, error: badgesError } = await supabase
-              .from('developer_badges')
-              .select('*')
-              .in('id', badgeIds);
+            const badgesData = await api.get<any[]>(
+              `/developer-badges?id=${badgeIds.join(',')}`,
+              session?.token
+            );
               
-            if (!badgesError && badgesData) {
+            if (badgesData) {
               userBadges = badgesData as DeveloperBadge[];
             }
           }
           
           // Transform profile data to match our interface
           const formattedProfile: ProfileData = {
-            id: profileData.id,
-            username: profileData.username,
-            fullName: profileData.full_name || profileData.username,
-            avatarUrl: profileData.avatar_url || "",
-            bio: profileData.bio || "Frontend developer passionate about creating clean, accessible and performant web applications.",
-            joinDate: profileData.join_date,
+            id: userProfile.id,
+            username: userProfile.username,
+            fullName: userProfile.full_name || userProfile.username,
+            avatarUrl: userProfile.avatar_url || "",
+            bio: userProfile.bio || "Frontend developer passionate about creating clean, accessible and performant web applications.",
+            joinDate: userProfile.join_date,
             skills: [],  // Will fetch separately
             rank: 0,  // Will calculate later
-            totalScore: profileData.xp_points,
+            totalScore: userProfile.xp_points,
             challengesSolved: 0,  // Will calculate later
             badges: userBadges,
-            githubUrl: profileData.github_url || "https://github.com",
-            linkedinUrl: profileData.linkedin_url || "https://linkedin.com"
+            githubUrl: userProfile.github_url || "https://github.com",
+            linkedinUrl: userProfile.linkedin_url || "https://linkedin.com"
           };
 
           setProfile(formattedProfile);
         }
 
         // Fetch user activities
-        const { data: activitiesData, error: activitiesError } = await supabase
-          .from('user_activities')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(4);
+        const activitiesData = await api.get<any[]>(
+          `/user-activities?user_id=${user.id}&_order=created_at&_sort=desc&_limit=4`,
+          session?.token
+        );
 
-        if (!activitiesError && activitiesData) {
+        if (activitiesData) {
           setActivities(activitiesData.map(a => ({
             ...a,
             type: a.activity_type,
@@ -123,39 +120,43 @@ const CandidateDashboard = () => {
         }
 
         // Fetch leaderboard data
-        const { data: leaderboardData, error: leaderboardError } = await supabase
-          .from('developer_profiles')
-          .select('id, username, xp_points, avatar_url')
-          .order('xp_points', { ascending: false })
-          .limit(5);
+        const leaderboardData = await api.get<any[]>(
+          `/developer-profiles?_order=xp_points&_sort=desc&_limit=5`,
+          session?.token
+        );
 
-        if (!leaderboardError && leaderboardData) {
+        if (leaderboardData) {
           // Transform the data
-          const formattedLeaderboard = await Promise.all(leaderboardData.map(async (user, index) => {
+          const formattedLeaderboard = await Promise.all(leaderboardData.map(async (userEntry, index) => {
             // Fetch user badges
-            const { data: userBadges } = await supabase
-              .from('user_badges')
-              .select('badge_id, developer_badges!inner(name)')
-              .eq('user_id', user.id);
+            const userBadges = await api.get<any[]>(
+              `/user-badges?user_id=${userEntry.id}`,
+              session?.token
+            );
+
+            const developerBadges = userBadges ? await api.get<any[]>(
+              `/developer-badges?id=${userBadges.map(ub => ub.badge_id).join(',')}`,
+              session?.token
+            ) : [];
 
             // Fetch user skills
-            const { data: userSkills } = await supabase
-              .from('user_skills')
-              .select('skill')
-              .eq('user_id', user.id);
+            const userSkills = await api.get<any[]>(
+              `/user-skills?user_id=${userEntry.id}`,
+              session?.token
+            );
 
-            const leaderboardUser: LeaderboardUser = {
-              id: user.id,
-              username: user.username,
-              avatarUrl: user.avatar_url || undefined,
-              score: user.xp_points,
+            const leaderboardUser = {
+              id: userEntry.id,
+              username: userEntry.username,
+              avatarUrl: userEntry.avatar_url || undefined,
+              score: userEntry.xp_points,
               rank: index + 1,
-              badges: userBadges ? userBadges.map(b => b.developer_badges.name) : [],
+              badges: developerBadges ? developerBadges.map(b => b.name) : [],
               skillTags: userSkills ? userSkills.map(s => s.skill) : []
             };
 
             // If this is the current user, save their rank
-            if (user.id === profile?.id) {
+            if (userEntry.id === profile?.id) {
               setCurrentUserRank(leaderboardUser);
             }
 
@@ -167,62 +168,67 @@ const CandidateDashboard = () => {
           // If current user is not in top 5, fetch their rank separately
           if (!formattedLeaderboard.some(u => u.id === user.id) && profile) {
             // Count users with higher score
-            const { count, error } = await supabase
-              .from('developer_profiles')
-              .select('*', { count: 'exact', head: true })
-              .gt('xp_points', profile.totalScore);
+            const higherRankUsers = await api.get<any[]>(
+              `/developer-profiles?xp_points_gt=${profile.totalScore}`,
+              session?.token
+            );
+            const count = higherRankUsers ? higherRankUsers.length : 0;
 
-            if (!error) {
-              // Fetch user badges and skills
-              const { data: userBadges } = await supabase
-                .from('user_badges')
-                .select('badge_id, developer_badges!inner(name)')
-                .eq('user_id', user.id);
+            // Fetch user badges and skills
+            const userBadges = await api.get<any[]>(
+              `/user-badges?user_id=${user.id}`,
+              session?.token
+            );
+            const developerBadges = userBadges ? await api.get<any[]>(
+              `/developer-badges?id=${userBadges.map(ub => ub.badge_id).join(',')}`,
+              session?.token
+            ) : [];
 
-              const { data: userSkills } = await supabase
-                .from('user_skills')
-                .select('skill')
-                .eq('user_id', user.id);
+            const userSkills = await api.get<any[]>(
+              `/user-skills?user_id=${user.id}`,
+              session?.token
+            );
 
-              setCurrentUserRank({
-                id: user.id,
-                username: profile.username,
-                avatarUrl: profile.avatarUrl,
-                score: profile.totalScore,
-                rank: (count || 0) + 1,
-                badges: userBadges ? userBadges.map(b => b.developer_badges.name) : [],
-                skillTags: userSkills ? userSkills.map(s => s.skill) : []
-              });
-            }
+            setCurrentUserRank({
+              id: user.id,
+              username: profile.username,
+              avatarUrl: profile.avatarUrl,
+              score: profile.totalScore,
+              rank: (count || 0) + 1,
+              badges: developerBadges ? developerBadges.map(b => b.name) : [],
+              skillTags: userSkills ? userSkills.map(s => s.skill) : []
+            });
           }
         }
 
         // Fetch challenges
-        const { data: challengesData, error: challengesError } = await supabase
-          .from('challenges')
-          .select(`
-            *,
-            challenge_attempts(user_id, status),
-            challenge_attempts!challenge_attempts_challenge_id_fkey(count)
-          `)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(2);
+        const challengesData = await api.get<any[]>(
+          `/challenges?is_active=true&_order=created_at&_sort=desc&_limit=2`,
+          session?.token
+        );
 
-        if (!challengesError && challengesData) {
-          const formattedChallenges = challengesData.map(challenge => {
-            // Check if the current user has completed this challenge
-            const userAttempt = challenge.challenge_attempts.find((attempt: any) => 
-              attempt.user_id === user.id
+        if (challengesData) {
+          const formattedChallenges = await Promise.all(challengesData.map(async (challenge) => {
+            // Fetch challenge attempts for the current user
+            const userAttempts = await api.get<any[]>(
+              `/challenge-attempts?challenge_id=${challenge.id}&user_id=${user.id}`,
+              session?.token
+            );
+            const userAttempt = userAttempts && userAttempts.length > 0 ? userAttempts[0] : null;
+
+            // Fetch all challenge attempts to count total and solved
+            const allAttempts = await api.get<any[]>(
+              `/challenge-attempts?challenge_id=${challenge.id}`,
+              session?.token
             );
             
             // Count total attempts
-            const totalAttempts = challenge.challenge_attempts?.length || 0;
+            const totalAttempts = allAttempts ? allAttempts.length : 0;
             
             // Count successful solves
-            const solvedCount = challenge.challenge_attempts?.filter((attempt: any) => 
+            const solvedCount = allAttempts ? allAttempts.filter((attempt) => 
               attempt.status === 'completed'
-            ).length || 0;
+            ).length : 0;
             
             // Calculate days active
             const createdDate = new Date(challenge.created_at);
@@ -241,20 +247,18 @@ const CandidateDashboard = () => {
               topContributors: [], // Would need additional query to get this
               isCompleted: userAttempt?.status === 'completed'
             };
-          });
+          }));
 
           setChallenges(formattedChallenges as Challenge[]);
         }
 
         // Fetch contests
-        const { data: contestsData, error: contestsError } = await supabase
-          .from('contests')
-          .select('*')
-          .in('status', ['upcoming', 'active'])
-          .order('start_date', { ascending: true })
-          .limit(2);
+        const contestsData = await api.get<any[]>(
+          `/contests?status_in=upcoming,active&_order=start_date&_sort=asc&_limit=2`,
+          session?.token
+        );
 
-        if (!contestsError && contestsData) {
+        if (contestsData) {
           const formattedContests = contestsData.map(contest => {
             return {
               id: contest.id,
