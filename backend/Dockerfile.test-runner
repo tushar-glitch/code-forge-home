@@ -1,0 +1,22 @@
+FROM node:18-alpine
+
+WORKDIR /usr/src/app
+
+COPY test-runner/test-runner-package.json ./package.json
+COPY test-runner/package-lock.json ./
+
+COPY test-runner/jest.config.js ./
+COPY test-runner/jest.setup.js ./
+
+RUN npm install
+
+# Set the working directory to /workspace for the final image
+WORKDIR /workspace
+
+# Create non-root user (use node's existing user)
+RUN chown -R node:node /usr/src/app
+RUN chown -R node:node /workspace
+
+USER node
+
+CMD ["/bin/sh"]

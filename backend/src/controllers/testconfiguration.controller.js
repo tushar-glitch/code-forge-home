@@ -30,8 +30,13 @@ const createTestConfiguration = async (req, res) => {
 
 // Get all test configurations
 const getTestConfigurations = async (req, res) => {
+  const { test_id } = req.query;
   try {
-    const testConfigurations = await prisma.testConfiguration.findMany();
+    const where = {};
+    if (test_id) {
+      where.test_id = parseInt(test_id);
+    }
+    const testConfigurations = await prisma.testConfiguration.findMany({ where });
     res.status(200).json(testConfigurations);
   } catch (error) {
     console.error('Error fetching test configurations:', error);

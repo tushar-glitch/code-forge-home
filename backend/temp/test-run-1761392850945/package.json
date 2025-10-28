@@ -1,0 +1,11 @@
+{
+  "name": "sxzxjxuj--run",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "vite": "5.4.21",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.7.0"
+  }
+}

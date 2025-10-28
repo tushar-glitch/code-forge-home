@@ -1,0 +1,26 @@
+# Dockerfile.node-jest (base image)
+FROM node:18-bullseye-slim
+
+# Create non-root user and group
+RUN groupadd -r appgroup && useradd -r -s /bin/bash -g appgroup appuser
+
+# Install utils that might be needed by user code or tests
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git python3 make g++ unzip \
+ && rm -rf /var/lib/apt/lists/*
+
+# Set working dir & non-root user
+WORKDIR /workspace
+USER appuser
+
+# This image expects the worker to mount the project files into /workspace
+# and run 'npm ci' and 'npm test' as the command for the container.
+
+# Set minimal NODE_ENV
+ENV NODE_ENV=production
+
+# Reduce Node's entropy blocking in some environments
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
+# An entrypoint to keep the container alive if needed, though we will override it.
+ENTRYPOINT ["tail", "-f", "/dev/null"]

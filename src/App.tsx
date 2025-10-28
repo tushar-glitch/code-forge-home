@@ -30,6 +30,10 @@ import Welcome from "./pages/Welcome";
 import EvaluationResult from "./pages/dashboard/EvaluationResult";
 import TestOverviewPage from "./pages/dashboard/TestOverviewPage";
 
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
+
 // Role-based protected route component
 interface ProtectedRouteProps {
   children: JSX.Element;
@@ -64,6 +68,7 @@ const App = () => (
         <AuthProvider>
           <Toaster />
           <Sonner />
+          <Header />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/signin" element={<SignIn />} />
@@ -228,6 +233,8 @@ const App = () => (
             {/* Catch-all Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <Footer />
+          <FeedbackWidget />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

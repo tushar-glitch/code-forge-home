@@ -4,8 +4,8 @@ const prisma = new PrismaClient();
 
 // Create a new test
 const createTest = async (req, res) => {
-  let { instructions, primary_language, test_title, time_limit, files_json, dependencies, test_files_json, technology, challengeId } = req.body;
-  const userId = req.userId; // Assuming userId is available from authentication middleware
+  let { instructions, primary_language, test_title, time_limit, files_json, dependencies, test_files_json, technology, challengeId, test_configurations } = req.body;
+  const userId = req.userId;
 
   if (!userId) {
     return res.status(401).json({ message: 'Unauthorized: User ID not found' });
@@ -21,32 +21,46 @@ const createTest = async (req, res) => {
         return res.status(404).json({ message: 'Challenge not found' });
       }
 
-      // Override test details with challenge details
-      test_title = challenge.title;
-      instructions = challenge.description; // Assuming challenge description can be used as test instructions
+      instructions = challenge.description;
       files_json = challenge.files_json;
       dependencies = challenge.dependencies;
       test_files_json = challenge.test_files_json;
-      // primary_language and technology might also come from challenge if available, but not in current schema
     }
 
-    const test = await prisma.test.create({
-      data: {
-        instructions,
-        primary_language,
-        test_title,
-        time_limit,
-        files_json,
-        dependencies,
-        test_files_json,
-        technology,
-        ...(challengeId && { Challenge: { connect: { id: challengeId } } }), // Correct way to connect to Challenge
-        User: {
-          connect: { id: userId },
+    const result = await prisma.$transaction(async (prisma) => {
+      const test = await prisma.test.create({
+        data: {
+          instructions,
+          primary_language,
+          test_title,
+          time_limit,
+          files_json,
+          dependencies,
+          test_files_json,
+          technology,
+          ...(challengeId && { Challenge: { connect: { id: challengeId } } }),
+          User: {
+            connect: { id: userId },
+          },
+          Recruiter: {
+            connect: { id: userId },
+          },
         },
-      },
+      });
+
+      if (test_configurations && test_configurations.length > 0) {
+        await prisma.testConfiguration.createMany({
+          data: test_configurations.map((config) => ({
+            ...config,
+            test_id: test.id,
+          })),
+        });
+      }
+
+      return test;
     });
-    res.status(201).json(test);
+
+    res.status(201).json(result);
   } catch (error) {
     console.error('Error creating test:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -55,8 +69,23 @@ const createTest = async (req, res) => {
 
 // Get all tests
 const getTests = async (req, res) => {
+  const userId = req.userId; // Assuming userId is available from authentication middleware
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Unauthorized: User ID not found' });
+  }
+  //password-1%nLPgE3ITjhg
+
+  console.log('Fetching tests for userId:', userId);
   try {
-    const tests = await prisma.test.findMany();
+    const tests = await prisma.test.findMany({
+      where: {
+        Recruiter: {
+          id: userId,
+        },
+      },
+    });
+    console.log('Found tests:', tests);
     res.status(200).json(tests);
   } catch (error) {
     console.error('Error fetching tests:', error);

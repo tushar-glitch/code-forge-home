@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const { evaluateSubmission } = require('../services/evaluation.service');
+const { evaluateSubmission } = require('../controllers/evaluation.controller');
 
 const prisma = new PrismaClient();
 
@@ -67,7 +67,19 @@ const getTestAssignmentByAccessLink = async (req, res) => {
     const testAssignment = await prisma.testAssignment.findFirst({
       where: { access_link: accessLink },
       include: {
-        Test: {},
+        Test: {
+          select: {
+            id: true,
+            files_json: true,
+            dependencies: true,
+            test_files_json: true,
+            problem_statement: true,
+            primary_language: true,
+            time_limit: true,
+            test_title: true,
+            instructions: true,
+          },
+        },
       },
     });
     if (!testAssignment) {
@@ -83,10 +95,12 @@ const getTestAssignmentByAccessLink = async (req, res) => {
 const updateTestAssignmentByAccessLink = async (req, res) => {
   const { accessLink } = req.params;
   const { status, started_at, completed_at, code_snapshot } = req.body;
+  console.log('Received accessLink:', accessLink);
   try {
     const assignment = await prisma.testAssignment.findFirst({
       where: { access_link: accessLink },
     });
+    console.log('Found assignment:', assignment);
 
     if (!assignment) {
       return res.status(404).json({ message: 'Test assignment not found' });

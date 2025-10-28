@@ -4,7 +4,7 @@ const { authenticateToken } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
-router.post('/', authenticateToken, createCompany);
+router.post('/', createCompany);
 router.get('/', getCompanies);
 router.get('/:id', getCompanyById);
 router.put('/:id', authenticateToken, updateCompany);

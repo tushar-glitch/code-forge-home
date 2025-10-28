@@ -5,8 +5,8 @@ const { authenticateToken } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router.post('/', authenticateToken, createChallenge);
-router.get('/', getChallenges);
-router.get('/:id', getChallengeById);
+router.get('/', authenticateToken, getChallenges);
+router.get('/:id', authenticateToken, getChallengeById);
 router.put('/:id', authenticateToken, updateChallenge);
 router.delete('/:id', authenticateToken, deleteChallenge);
 

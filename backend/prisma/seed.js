@@ -64,6 +64,7 @@ const main = async () => {
       difficulty: 'Easy',
       is_active: true,
       tags: ['react', 'frontend', 'javascript'],
+      technology: 'react',
       files_json: {
         'src/App.js': "import React from 'react';\nimport Counter from './Counter';\n\nfunction App() {\n  return (\n    <div className=\"App\">\n      <h1>My Counter App</h1>\n      <Counter />\n    </div>\n  );\n}\n\nexport default App;\n",
         'src/Counter.js': "import React, { useState } from 'react';\n\nfunction Counter() {\n  const [count, setCount] = useState(0);\n\n  return (\n    <div>\n      <p>Count: {count}</p>\n      <button onClick={() => setCount(count + 1)}>Increment</button>\n      <button onClick={() => setCount(count - 1)}>Decrement</button>\n    </div>\n  );\n}\n\nexport default Counter;\n",
@@ -76,7 +77,7 @@ const main = async () => {
         'vite': '^5.0.11',
       },
       test_files_json: {
-        'tests/counter.spec.js': "import { test, expect } from '@playwright/test';\n\ntest('should increment and decrement the counter', async ({ page }) => {\n  await page.goto('http://localhost:8080'); // Assuming your React app runs on 8080\n\n  // Check initial count\n  await expect(page.locator('text=Count: 0')).toBeVisible();\n\n  // Increment\n  await page.click('text=Increment');\n  await expect(page.locator('text=Count: 1')).toBeVisible();\n\n  // Decrement\n  await page.click('text=Decrement');\n  await expect(page.locator('text=Count: 0')).toBeVisible();\n\n  // Decrement again\n  await page.click('text=Decrement');\n  await expect(page.locator('text=Count: -1')).toBeVisible();\n});\n",
+        'tests/counter.test.js': "import React from 'react';\nimport { render, screen, fireEvent } from '@testing-library/react';\nimport Counter from '../src/Counter';\nimport '@testing-library/jest-dom';\n\ntest('renders counter with initial count of 0', () => {\n  render(<Counter />);\n  expect(screen.getByText('Count: 0')).toBeInTheDocument();\n});\n\ntest('increments counter when Increment button is clicked', () => {\n  render(<Counter />);\n  const incrementButton = screen.getByText('Increment');\n  fireEvent.click(incrementButton);\n  expect(screen.getByText('Count: 1')).toBeInTheDocument();\n});\n\ntest('decrements counter when Decrement button is clicked', () => {\n  render(<Counter />);\n  const decrementButton = screen.getByText('Decrement');\n  fireEvent.click(decrementButton);\n  expect(screen.getByText('Count: -1')).toBeInTheDocument();\n});\n\ntest('increments and decrements work together', () => {\n  render(<Counter />);\n  const incrementButton = screen.getByText('Increment');\n  const decrementButton = screen.getByText('Decrement');\n  \n  // Increment twice\n  fireEvent.click(incrementButton);\n  fireEvent.click(incrementButton);\n  expect(screen.getByText('Count: 2')).toBeInTheDocument();\n  \n  // Decrement once\n  fireEvent.click(decrementButton);\n  expect(screen.getByText('Count: 1')).toBeInTheDocument();\n});\n",
       },
     },
   });
@@ -145,7 +146,7 @@ const main = async () => {
       evaluationStatus: 'completed',
       test_output: {
         'summary': 'All tests passed',
-        'details': 'Playwright output here',
+        'details': 'Jest + React Testing Library output here',
       },
     },
   });
@@ -155,9 +156,9 @@ const main = async () => {
   const testConfig1 = await prisma.testConfiguration.create({
     data: {
       test_id: counterTest.id,
-      name: 'Default Playwright Config',
-      test_script: 'npx playwright test',
-      description: 'Standard Playwright test execution',
+      name: 'Default Jest Config',
+      test_script: 'npm test',
+      description: 'Standard Jest test execution with React Testing Library',
       enabled: true,
     },
   });

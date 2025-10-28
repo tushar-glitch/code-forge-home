@@ -26,6 +26,7 @@ const githubRoutes = require('./routes/github.routes');
 const invitationRoutes = require('./routes/invitation.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const evaluationRoutes = require('./routes/evaluation.routes');
+const execRoutes = require('./routes/exec.routes'); // Add this line
 const { WebSocketServer } = require('ws');
 const url = require('url');
 const { saveProctoringEvent } = require('./controllers/proctoring.controller');
@@ -63,6 +64,7 @@ app.use('/api/invitations', invitationRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/evaluations', evaluationRoutes);
+app.use('/api/exec', execRoutes); // Add this line
 
 app.get('/', (req, res) => {
   res.send('Hello from the backend!');

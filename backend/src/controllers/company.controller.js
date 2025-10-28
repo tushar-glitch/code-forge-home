@@ -5,11 +5,6 @@ const prisma = new PrismaClient();
 // Create a new company
 const createCompany = async (req, res) => {
   const { email, name } = req.body;
-  const userId = req.userId; // Assuming userId is available from authentication middleware
-
-  if (!userId) {
-    return res.status(401).json({ message: 'Unauthorized: User ID not found' });
-  }
 
   try {
     const company = await prisma.company.create({

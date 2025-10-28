@@ -11,8 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "@/components/ui/sonner";
 
-import NavBar from "@/components/NavBar";
-import Footer from "@/components/Footer";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
@@ -134,7 +134,7 @@ const GetStarted = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <NavBar />
+      <Header />
       
       <main className="flex-1 container max-w-5xl mx-auto px-4 py-12 md:py-20">
         <div className="grid md:grid-cols-2 gap-12 items-center">

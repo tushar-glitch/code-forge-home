@@ -127,6 +127,7 @@ model User {
   DeveloperProfile DeveloperProfile? // One-to-one relationship
   Profile       Profile? // One-to-one relationship
   Test          Test[] // A user can create multiple tests
+  RecruiterTests Test[] @relation("RecruiterTests")
   Lead          Lead?
   InvitedCandidates Candidate[]
 }
@@ -163,6 +164,7 @@ model Test {
   test_title       String
   time_limit       Int
   user_id          String?
+  recruiterId      String?
   files_json       Json?
   dependencies     Json?
   test_files_json  Json?
@@ -172,6 +174,7 @@ model Test {
   TestAssignment   TestAssignment[]
   TestConfiguration TestConfiguration[]
   User             User?               @relation(fields: [user_id], references: [id])
+  Recruiter        User?               @relation("RecruiterTests", fields: [recruiterId], references: [id])
   Challenge        Challenge?          @relation(fields: [challengeId], references: [id])
 }
 
@@ -183,6 +186,7 @@ model Challenge {
   is_active          Boolean            @default(true)
   tags               String[]
   title              String
+  technology         String?
   files_json         Json?
   dependencies       Json?
   test_files_json    Json?
@@ -244,6 +248,11 @@ model Submission {
   TestAssignment TestAssignment? @relation(fields: [assignment_id], references: [id])
   TestResult    TestResult[]
   code_snapshot Json?
+  exit_code     Int?
+  stdout        String?
+  stderr        String?
+  duration      Int?      // Duration in milliseconds
+  status        String?   @default("pending") // overall status: pending, completed, error
 }
 
 model TestResult {

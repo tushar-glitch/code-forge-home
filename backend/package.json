@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "echo \"No build needed\"",
     "dev": "nodemon src/index.js",
     "prisma:seed": "node prisma/seed.js",
-    "start": "node dist/index.js",
+    "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -20,7 +20,9 @@
     "@prisma/client": "^6.17.1",
     "axios": "^1.7.2",
     "bcryptjs": "^3.0.2",
+    "bullmq": "^5.61.2",
     "cors": "^2.8.5",
+    "dockerode": "^4.0.9",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "playwright": "^1.56.1",

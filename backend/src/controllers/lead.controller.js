@@ -5,6 +5,16 @@ const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const generateRandomPassword = () => {
+  const charset = "ABCDEFGHIJKL!@#$_MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_";
+  let password = "", lengthOfPassword=Math.floor((Math.random()*3)+12)
+  for(let i = 0; i < lengthOfPassword; i++){
+    const randomIndex = Math.floor(Math.random() * charset.length);
+    password += charset[randomIndex];
+  }
+  return password;
+}
+
 // Create a new lead
 const createLead = async (req, res) => {
   const { company_id, email, hiring_count, notes, role, status } = req.body;
@@ -18,13 +28,15 @@ const createLead = async (req, res) => {
       return res.status(409).json({ message: 'User with this email already exists' });
     }
 
-    const hashedPassword = await bcrypt.hash('hardcoded_password', 10);
-
+    const password = generateRandomPassword();
+    console.log("password", password)
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await prisma.$transaction(async (prisma) => {
       const user = await prisma.user.create({
         data: {
           email,
           password: hashedPassword,
+          role: "recruiter",
         },
       });
 
@@ -42,7 +54,6 @@ const createLead = async (req, res) => {
 
       return { user, lead };
     });
-    console.log("sending mails")
     // Send welcome email
     const temp = await resend.emails.send({
       from: 'Hire10xDevs <noreply@hire10xdevs.site>',

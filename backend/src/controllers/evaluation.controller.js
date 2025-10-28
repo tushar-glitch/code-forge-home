@@ -13,7 +13,6 @@ const evaluateSubmission = async (submissionId) => {
           include: {
             Test: {
               include: {
-                CodeProject: true,
               },
             },
           },
