@@ -19,9 +19,14 @@ import {
 } from "@codesandbox/sandpack-react";
 import { atomDark } from "@codesandbox/sandpack-themes";
 import { Button } from "@/components/ui/button";
-import { Loader2, Bot, Code2, MessageSquare, Sparkles, CheckCircle, XCircle } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Code2,
+  Bot,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-// import { supabase } from "@/integrations/supabase/client"; // Removed Supabase import
 import { useAuth } from "@/context/AuthContext";
 import { SandpackFileExplorer } from "sandpack-file-explorer";
 import {
@@ -30,12 +35,10 @@ import {
   getAssignmentDetailsByAccessLink,
 } from "@/lib/test-management-utils";
 import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
-import { api } from "@/lib/api"; // Import our new API client
+import { api } from "@/lib/api";
 
-// Type definition for project files
 type ProjectFiles = Record<string, string>;
 
-// Default template files if no project is loaded
 const defaultFiles: ProjectFiles = {
   "/App.js": `import React from 'react';
   
@@ -63,7 +66,6 @@ root.render(<App />);`,
 }
 
 .App {
-  font-family: sans-serif;
   text-align: center;
   padding: 20px;
 }
@@ -73,6 +75,7 @@ h1 {
 }`,
 };
 
+// CLIENT'S PROCTORING AGENT COMPONENT (KEEP THIS)
 const ProctoringAgent = ({ accessLink, projectFiles }) => {
   const { toast } = useToast();
   const [aiQuestion, setAiQuestion] = useState<string | null>(null);
@@ -167,13 +170,14 @@ const InterviewWorkspace = () => {
   const navigate = useNavigate();
   const { user, session } = useAuth();
   const { assignmentId } = useParams();
+  const location = useLocation();
 
   const [isLoading, setIsLoading] = useState(true);
   const [projectFiles, setProjectFiles] = useState<ProjectFiles>(defaultFiles);
   const [activeFile, setActiveFile] = useState("/App.js");
   const [assignmentData, setAssignmentData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [projectData, setProjectData] = useState<any>(null);
   const [editorHeight, setEditorHeight] = useState(300);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
@@ -182,127 +186,88 @@ const InterviewWorkspace = () => {
   const [testStatus, setTestStatus] = useState<"pending" | "running" | "passed" | "failed" | "not_run">("not_run");
   const [testResults, setTestResults] = useState<any>(null);
   const [submissionId, setSubmissionId] = useState<number | null>(null);
-  const { state } = useLocation();
-  const [accessLink, setAccessLink] = useState<string | null>(state?.accessLink || null);
+  const [accessLink, setAccessLink] = useState<string | null>(location.state?.accessLink || null);
 
+  // YOUR CORE LOGIC FOR LOADING ASSIGNMENT (KEEP THIS)
   useEffect(() => {
     const loadAssignment = async () => {
+      console.log("🔹 loadAssignment triggered for assignmentId:", assignmentId);
       setIsLoading(true);
       try {
-        if (assignmentId) {
-          let assignmentDetails;
-          const accessLinkFromState = state?.accessLink;
+        let assignmentDetails;
 
+        if (user) {
+          console.log("🔹 Logged-in recruiter flow");
+          assignmentDetails = await getAssignmentDetails(parseInt(assignmentId!));
+        } else {
+          console.log("🔹 Candidate flow using access link");
+          assignmentDetails = await getAssignmentDetailsByAccessLink(accessLink || assignmentId!);
+        }
+
+        console.log("✅ Assignment details loaded:", assignmentDetails);
+
+        if (!assignmentDetails) throw new Error("Assignment not found");
+
+        setAssignmentData(assignmentDetails);
+        setAccessLink(assignmentDetails.access_link);
+
+        // Update status to in-progress if pending
+        if (assignmentDetails.status === "pending") {
+          console.log("🔹 Updating assignment status to in-progress...");
           if (user) {
-            // Authenticated user: fetch by assignmentId
-            assignmentDetails = await getAssignmentDetails(parseInt(assignmentId));
-          } else if (accessLinkFromState) {
-            // Unauthenticated user: fetch by accessLink passed in state
-            assignmentDetails = await getAssignmentDetailsByAccessLink(accessLinkFromState);
-          } else {
-            throw new Error("Assignment details or access link not found.");
+            await updateAssignmentStatus(parseInt(assignmentId!), "in-progress", true, false);
+          } else if (assignmentDetails.access_link) {
+            await updateAssignmentStatus(assignmentDetails.access_link, "in-progress", true, false);
           }
+          console.log("✅ Status updated to in-progress");
+        }
 
-          if (!assignmentDetails) {
-            throw new Error("Assignment not found");
+        // Load project files
+        if (assignmentDetails.test?.project_id) {
+          const project = await api.get<any>(
+            `/code-projects/${assignmentDetails.test.project_id}`,
+            session?.token
+          );
+
+          setProjectData(project);
+
+          if (project.files_json) {
+            const filesData = project.files_json;
+            const parsedFiles = typeof filesData === "string" ? JSON.parse(filesData) : filesData;
+            setProjectFiles(parsedFiles);
+            const firstFilePath = Object.keys(parsedFiles)[0];
+            if (firstFilePath) setActiveFile(firstFilePath);
           }
+        }
 
-          setAssignmentData(assignmentDetails);
-          setAccessLink(assignmentDetails.access_link); // Store accessLink
-          console.log('assignmentDetails:', assignmentDetails);
-          console.log('assignmentDetails.test?.project_id:', assignmentDetails.test?.project_id);
+        // Load any existing submissions
+        const submissions = await api.get<any[]>(
+          `/submissions?assignment_id=${assignmentId}`,
+          session?.token
+        );
 
-          // Mark the assignment as started if not already
-          if (assignmentDetails.status === "pending") {
-            if (user) {
-              await updateAssignmentStatus(
-                parseInt(assignmentId),
-                "in-progress",
-                true,
-                false
-              );
-            } else if (assignmentDetails.access_link) {
-              await updateAssignmentStatus(
-                assignmentDetails.access_link,
-                "in-progress",
-                true,
-                false
-              );
+        if (submissions?.length > 0) {
+          const latest = submissions[0];
+          setSubmissionId(latest.id);
+          if (latest.test_status) setTestStatus(latest.test_status);
+          if (latest.test_results) setTestResults(latest.test_results);
+
+          try {
+            if (latest.content) {
+              const parsed = JSON.parse(String(latest.content));
+              if (typeof parsed === "object") setProjectFiles(parsed);
             }
-          }
-
-          // Initialize project files from assignmentData.Test.files_json
-          if (assignmentDetails.Test?.files_json) {
-            try {
-              const filesData = assignmentDetails.Test.files_json;
-              if (filesData !== null) {
-                const parsedFiles =
-                  typeof filesData === "string"
-                    ? JSON.parse(filesData)
-                    : filesData;
-
-                if (parsedFiles && typeof parsedFiles === "object") {
-                  setProjectFiles(parsedFiles as ProjectFiles);
-                  const firstFilePath = Object.keys(parsedFiles)[0];
-                  if (firstFilePath) setActiveFile(firstFilePath);
-                }
-              }
-            } catch (e) {
-              console.error("Error parsing project files from assignmentDetails.Test.files_json:", e);
-              toast({
-                title: "Error",
-                description: "Failed to load project files from test configuration",
-                variant: "destructive",
-              });
-            }
-          }
-
-          // Only check for existing submissions if the user is authenticated
-          if (user) {
-            const submissions = await api.get<any[]>(
-              `/submissions?assignment_id=${assignmentId}`,
-              session?.token
-            );
-
-            // If there are submissions, load the most recent one
-            if (submissions && submissions.length > 0) {
-              const latestSubmission = submissions[0];
-              setSubmissionId(latestSubmission.id);
-
-              // Load test status if available
-              if (latestSubmission.test_status) {
-                setTestStatus(latestSubmission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
-              }
-
-              // Load test results if available
-              if (latestSubmission.test_results) {
-                setTestResults(latestSubmission.test_results);
-              }
-
-              try {
-                if (latestSubmission.content) {
-                  const contentStr = String(latestSubmission.content);
-                  const parsedContent = JSON.parse(contentStr);
-                  if (typeof parsedContent === "object") {
-                    setProjectFiles(parsedContent as ProjectFiles);
-                  }
-                }
-              } catch (e) {
-                // Handle single file content format
-                if (latestSubmission.file_path && latestSubmission.content) {
-                  const filePath = String(latestSubmission.file_path);
-                  const content = String(latestSubmission.content);
-                  setProjectFiles((prev) => ({
-                    ...prev,
-                    [filePath]: content,
-                  }));
-                }
-              }
+          } catch {
+            if (latest.file_path && latest.content) {
+              setProjectFiles((prev) => ({
+                ...prev,
+                [latest.file_path]: String(latest.content),
+              }));
             }
           }
         }
-      } catch (error) {
-        console.error("Error loading assignment:", error);
+      } catch (error: any) {
+        console.error("❌ Error loading assignment:", error);
         toast({
           title: "Error",
           description: error.message || "Failed to load the assignment data",
@@ -314,90 +279,117 @@ const InterviewWorkspace = () => {
     };
 
     loadAssignment();
-  }, [user, assignmentId, navigate, toast]);
+  }, [user, assignmentId, accessLink]);
 
-  // Poll for test results if tests are running
+  // YOUR POLLING LOGIC (KEEP THIS)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-
-    if (testStatus === 'running' && submissionId) {
+    if (testStatus === "running" && submissionId) {
       interval = setInterval(async () => {
         try {
-          const res = await api.get<any>(`/exec/status/${submissionId}`);
-          if (res && res.status !== 'running' && res.test_status !== 'pending') {
-            setTestStatus(res.test_status as | 'pending'| 'running'| 'passed'| 'failed'| 'not_run');
-            setTestResults(res.results);
+          const submission = await api.get<any>(`/submissions/${submissionId}`, session?.token);
+          if (submission && submission.test_status !== "running") {
+            setTestStatus(submission.test_status);
+            setTestResults(submission.test_results);
             clearInterval(interval);
           }
         } catch (err) {
-          console.error('Error polling test results:', err);
-          setTestStatus('failed');
-          clearInterval(interval);
+          console.error("❌ Error polling test results:", err);
         }
-      }, 3000); // Poll every 3 seconds
+      }, 5000);
     }
-
     return () => clearInterval(interval);
   }, [testStatus, submissionId]);
 
-  const runTests = async () => {
-    if (!assignmentId || !assignmentData?.Test?.id) {
-      toast({
-        title: 'Error',
-        description: 'Assignment details not loaded correctly.',
-        variant: 'destructive',
-      });
-      return;
+  // Auto-save changes
+  const handleFileChange = async (files: ProjectFiles) => {
+    setAutosaveStatus("saving");
+    try {
+      const submission = await api.post<any>(
+        `/submissions`,
+        {
+          assignment_id: parseInt(assignmentId!),
+          content: JSON.stringify(files),
+          saved_at: new Date().toISOString(),
+        },
+        session?.token
+      );
+      setSubmissionId(submission.id);
+      setAutosaveStatus("saved");
+    } catch (error) {
+      console.error("❌ Error saving submission:", error);
+      setAutosaveStatus("error");
     }
-    console.log('Frontend sending assignmentId (TestAssignment.id):', assignmentData.id);
-    console.log('Frontend sending projectId (Test.id):', assignmentData.Test.id);
+  };
 
-    setTestStatus('running');
-    setTestResults(null);
+  // YOUR GITHUB API RUN TESTS LOGIC (KEEP THIS)
+  const runTests = async () => {
+    console.log("🔹 runTests triggered");
+
+    let currentSubmissionId = submissionId;
+
+    if (!currentSubmissionId) {
+      try {
+        console.log("🔹 Creating temporary submission...");
+        const submission = await api.post<any>(
+          `/submissions`,
+          {
+            assignment_id: assignmentId ? parseInt(assignmentId) : null,
+            access_link: accessLink || null,
+            content: JSON.stringify(projectFiles),
+            saved_at: new Date().toISOString(),
+          },
+          session?.token
+        );
+        currentSubmissionId = submission.id;
+        setSubmissionId(currentSubmissionId);
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Could not create temporary submission for testing.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setTestStatus("running");
 
     try {
-      const payload = {
-        assignmentId: assignmentData.id,
-        files: projectFiles,
-        projectId: assignmentData.Test.id,
-      };
-      console.log('Frontend sending payload:', payload);
-      const response = await api.post<any>('/exec/submit', payload);
-
-      setSubmissionId(response.submissionId);
+      await api.post<any>(
+        `/github/create-repo-and-run-tests`,
+        {
+          assignment_id: assignmentId ? parseInt(assignmentId) : null,
+          access_link: accessLink || null,
+          submission_id: currentSubmissionId,
+          project_files: projectFiles,
+          test_id: assignmentData?.test?.id,
+        },
+        session?.token
+      );
 
       toast({
-        title: 'Tests Started',
-        description: 'Your code is being tested. Results will appear shortly.',
+        title: "Tests Started",
+        description: "Your code is being tested. Results will appear shortly.",
       });
     } catch (error) {
-      console.error('Error running tests:', error);
-      setTestStatus('failed');
+      console.error("❌ Error running tests:", error);
+      setTestStatus("not_run");
       toast({
-        title: 'Error',
-        description: 'Failed to start tests. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to run tests. Please try again.",
+        variant: "destructive",
       });
     }
   };
 
+  // YOUR SUBMIT LOGIC (KEEP THIS)
   const handleSubmit = async () => {
-    if (!assignmentId) {
-      toast({
-        title: "Info",
-        description:
-          "This is just a demo. In a real test, your work would be submitted for review.",
-      });
-      // In a demo, just navigate back to the dashboard
-      setTimeout(() => navigate("/candidate-dashboard"), 2000);
-      return;
-    }
-
+    if (!assignmentId) return;
     setIsSubmitting(true);
     try {
-      // Create a final submission with current files if one doesn't exist
       let finalSubmissionId = submissionId;
-      
+
       if (!finalSubmissionId) {
         const submission = await api.post<any>(
           `/submissions`,
@@ -405,40 +397,26 @@ const InterviewWorkspace = () => {
             assignment_id: parseInt(assignmentId),
             content: JSON.stringify(projectFiles),
             saved_at: new Date().toISOString(),
-            accessLink: accessLink,
           },
           session?.token
         );
-  
         finalSubmissionId = submission.id;
       }
-      
-      // Run tests if they haven't been run yet
+
       if (testStatus === "not_run" || testStatus === "pending") {
         await runTests();
       }
-      
-      // Mark the assignment as completed
-      const updated = await updateAssignmentStatus(
-        accessLink, // Use the accessLink state variable
-        "completed",
-        false,
-        true
-      );
 
-      if (!updated) {
-        throw new Error("Failed to update assignment status");
-      }
+      await updateAssignmentStatus(parseInt(assignmentId), "completed", false, true);
 
       toast({
         title: "Submission Successful",
         description: "Your work has been submitted for review.",
       });
 
-      // Redirect to the candidate dashboard
       setTimeout(() => navigate("/candidate-dashboard"), 2000);
     } catch (error) {
-      console.error("Error submitting assignment:", error);
+      console.error("❌ Error submitting assignment:", error);
       toast({
         title: "Error",
         description: "Failed to submit your work. Please try again.",
@@ -448,7 +426,6 @@ const InterviewWorkspace = () => {
     }
   };
 
-  // Simplified drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -459,163 +436,109 @@ const InterviewWorkspace = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      e.preventDefault();
       const deltaY = e.clientY - startY;
       const newHeight = Math.max(200, Math.min(startHeight + deltaY, window.innerHeight - 200));
       setEditorHeight(newHeight);
     };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
+    const handleMouseUp = () => setIsDragging(false);
 
     if (isDragging) {
-      document.body.style.cursor = 'row-resize';
-      document.body.style.userSelect = 'none';
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = "row-resize";
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
     }
 
     return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDragging, startY, startHeight]);
 
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading workspace...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+        <p>Loading workspace...</p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-screen">
+      {/* CLIENT'S PROCTORING AGENT (KEEP THIS) */}
       <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} />
-      {/* Header with auto-save status and submission button */}
-      <WorkspaceHeader 
-        testTitle={assignmentData?.test?.test_title || "Coding Test"} 
-        autosaveStatus={autosaveStatus} 
-        onSubmit={handleSubmit} 
+      
+      <WorkspaceHeader
+        testTitle={assignmentData?.test?.test_title || "Coding Test"}
+        autosaveStatus={autosaveStatus}
+        onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
       />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Sandpack Editor */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <SandpackProvider
-            theme={atomDark}
-            files={projectFiles}
-            template="react"
-            customSetup={{
-              dependencies: {
-                react: "^18.0.0",
-                "react-dom": "^18.0.0",
-              },
-            }}
-            onFilesChange={setProjectFiles}
-            onActiveFileChange={setActiveFile}
-          >
-            <SandpackLayout>
-              <div
-                style={{
-                  display: "flex",
-                  width: "100%",
-                  height: `${editorHeight}px`,
-                  backgroundColor: `var(--sp-colors-surface1)`,
-                  position: 'relative',
-                }}
-              >
-                <div
-                  style={{
-                    minWidth: 150,
-                    maxWidth: "300px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <SandpackFileExplorer />
-                </div>
-                <div style={{ flex: "min-content" }}>
-                  <SandpackCodeEditor
-                    showLineNumbers={true}
-                    style={{
-                      height: "100%",
-                      overflow: "auto",
-                    }}
-                    showInlineErrors
-                    showTabs
-                    wrapContent
-                    closableTabs
-                    className="flex-1 h-full"
-                  />
-                </div>
+        <SandpackProvider
+          theme={atomDark}
+          files={projectFiles}
+          template="react"
+          customSetup={{
+            dependencies: {
+              react: "^18.0.0",
+              "react-dom": "^18.0.0",
+            },
+          }}
+          onFilesChange={setProjectFiles}
+          onActiveFileChange={setActiveFile}
+        >
+          <SandpackLayout>
+            <div style={{ display: "flex", width: "100%", height: `${editorHeight}px`, backgroundColor: `var(--sp-colors-surface1)` }}>
+              <div style={{ minWidth: 150, maxWidth: "300px", overflow: "hidden" }}>
+                <SandpackFileExplorer />
               </div>
-              
-              <div
-                style={{
-                  width: "100%",
-                  height: "8px",
-                  backgroundColor: "#2d2d2d",
-                  cursor: "row-resize",
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderTop: "1px solid #404040",
-                  borderBottom: "1px solid #404040",
-                  userSelect: "none",
-                }}
-                onMouseDown={handleDragStart}
-              >
-                <div
-                  style={{
-                    width: "100%",
-                    height: "4px",
-                    backgroundColor: "#404040",
-                  }}
-                />
+              <div style={{ flex: "min-content" }}>
+                <SandpackCodeEditor showLineNumbers showTabs wrapContent closableTabs className="flex-1 h-full" />
               </div>
+            </div>
 
-              <SandpackPreview
-                showNavigator={true}
-                showRefreshButton
-                showOpenInCodeSandbox={false}
-              />
-            </SandpackLayout>
-          </SandpackProvider>
-        </div>
+            <div
+              style={{
+                width: "100%",
+                height: "8px",
+                backgroundColor: "#2d2d2d",
+                cursor: "row-resize",
+              }}
+              onMouseDown={handleDragStart}
+            >
+              <div style={{ width: "100%", height: "4px", backgroundColor: "#404040" }} />
+            </div>
 
-        {/* Test Results Section */}
+            <SandpackPreview showNavigator showRefreshButton showOpenInCodeSandbox={false} />
+          </SandpackLayout>
+        </SandpackProvider>
+
         <div className="border-t border-border p-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Test Results</h2>
-            <Button 
-              onClick={runTests} 
-              disabled={testStatus === "running"}
-              className={testStatus === "passed" ? "bg-green-600 hover:bg-green-700" : ""}
-            >
+            <Button onClick={runTests} disabled={testStatus === "running"}>
               {testStatus === "running" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {testStatus === "passed" && <CheckCircle className="mr-2 h-4 w-4" />}
               {testStatus === "failed" && <XCircle className="mr-2 h-4 w-4" />}
               {testStatus === "running" ? "Running Tests..." : "Run Tests"}
             </Button>
           </div>
-          
-          {/* Test Status */}
+
           {testStatus !== "not_run" && (
             <div className="mt-4">
-              <div className={`p-4 rounded-md ${
-                testStatus === "passed" ? "bg-green-100 border border-green-200" : 
-                testStatus === "failed" ? "bg-red-100 border border-red-200" :
-                "bg-gray-100 border border-gray-200"
-              }`}>
+              <div
+                className={`p-4 rounded-md ${
+                  testStatus === "passed"
+                    ? "bg-green-100 border border-green-200"
+                    : testStatus === "failed"
+                    ? "bg-red-100 border border-red-200"
+                    : "bg-gray-100 border border-gray-200"
+                }`}
+              >
                 <div className="flex items-center">
                   {testStatus === "passed" && <CheckCircle className="h-5 w-5 text-green-500 mr-2" />}
                   {testStatus === "failed" && <XCircle className="h-5 w-5 text-red-500 mr-2" />}
@@ -623,7 +546,7 @@ const InterviewWorkspace = () => {
                   {testStatus === "pending" && <Code2 className="h-5 w-5 mr-2" />}
                   <span className="font-medium capitalize">{testStatus}</span>
                 </div>
-                
+
                 {testResults && (
                   <div className="mt-4">
                     <h3 className="font-medium mb-2">Test Details:</h3>
@@ -631,10 +554,6 @@ const InterviewWorkspace = () => {
                       {JSON.stringify(testResults, null, 2)}
                     </pre>
                   </div>
-                )}
-                
-                {testStatus === "running" && (
-                  <p className="text-sm mt-2">Tests are running. This might take a few moments...</p>
                 )}
               </div>
             </div>
