@@ -50,45 +50,20 @@ const createSubmission = async (req, res) => {
 
 // Get all submissions
 const getSubmissions = async (req, res) => {
-  const { testId } = req.query;
-  const userId = req.userId; // Assuming userId is available from authentication middleware
-
-  if (!userId) {
-    return res.status(401).json({ message: 'Unauthorized: User ID not found' });
-  }
-
-  const where = {
-    TestAssignment: {
-      Test: {
-        recruiterId: userId,
-      },
-    },
-  };
-
-  if (testId) {
-    const parsedTestId = parseInt(testId);
-    if (isNaN(parsedTestId)) {
-      return res.status(400).json({ message: 'Invalid testId' });
-    }
-    where.TestAssignment.test_id = parsedTestId;
-  }
-
   try {
+    const { assignment_id, access_link } = req.query;
+    const where = {};
+    if (assignment_id) {
+      where.assignment_id = parseInt(assignment_id);
+    } else if (access_link) {
+      where.access_link = access_link;
+    }
+
     const submissions = await prisma.submission.findMany({
       where,
-      include: {
-        TestAssignment: {
-          include: {
-            Candidate: true,
-            Test: {
-              include: {
-                User: { select: { id: true, email: true } }, // Include recruiter user info
-              },
-            },
-          },
-        },
-      },
+      orderBy: { created_at: 'desc' },
     });
+
     res.status(200).json(submissions);
   } catch (error) {
     console.error('Error fetching submissions:', error);
@@ -98,35 +73,14 @@ const getSubmissions = async (req, res) => {
 
 // Get a single submission by ID
 const getSubmissionById = async (req, res) => {
-  const { id } = req.params;
-  const userId = req.userId; // Assuming userId is available from authentication middleware
-
-  if (!userId) {
-    return res.status(401).json({ message: 'Unauthorized: User ID not found' });
-  }
-
   try {
+    const { id } = req.params;
     const submission = await prisma.submission.findUnique({
       where: { id: parseInt(id) },
-      include: {
-        TestAssignment: {
-          include: {
-            Candidate: true,
-            Test: {
-              where: {
-                recruiterId: userId,
-              },
-              include: {
-                User: { select: { id: true, email: true } }, // Include recruiter user info
-              },
-            },
-          },
-        },
-      },
     });
 
-    if (!submission || !submission.TestAssignment?.Test) {
-      return res.status(404).json({ message: 'Submission not found or not authorized' });
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found' });
     }
     res.status(200).json(submission);
   } catch (error) {

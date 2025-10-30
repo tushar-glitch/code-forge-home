@@ -72,6 +72,9 @@ const TestTakerWorkspace = () => {
       }
 
       // Redirect to the InterviewWorkspace using the assignment ID
+      if( !assignmentData.id ) {
+        throw new Error("Invalid assignment ID.");
+      }
       navigate(`/interview/${assignmentData.id}`, { state: { accessLink: assignmentData.access_link } });
     } catch (error) {
       console.error("Error starting test:", error);

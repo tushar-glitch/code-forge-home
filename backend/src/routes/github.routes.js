@@ -4,6 +4,6 @@ const { authenticateToken } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
-router.post('/create-repo-and-run-tests', authenticateToken, createRepoAndRunTests);
+router.post('/create-repo-and-run-tests', createRepoAndRunTests);
 
 module.exports = router;
