@@ -70,9 +70,9 @@ const TestTakerWorkspace = () => {
           throw new Error("Failed to update assignment status.");
         }
       }
-
-      // Redirect to the InterviewWorkspace using the assignment ID
-      navigate(`/interview/${assignmentData.id}`, { state: { accessLink: assignmentData.access_link } });
+      console.log('assignmentData', assignmentData);
+      // Redirect to the InterviewWorkspace using the assignment ID and pass accessLink in state
+      navigate(`/interview/${assignmentData.access_link}`, { state: { accessLink: assignmentData.access_link } });
     } catch (error) {
       console.error("Error starting test:", error);
       toast({

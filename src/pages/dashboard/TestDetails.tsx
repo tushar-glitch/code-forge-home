@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { TestEditor } from '@/components/dashboard/TestEditor';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
 const TestDetails = () => {
   const { testId } = useParams();
@@ -9,7 +10,11 @@ const TestDetails = () => {
     return <div>Invalid test ID</div>;
   }
 
-  return <TestEditor testId={parseInt(testId)} />;
+  return (
+    <DashboardLayout title="Test Details">
+      <TestEditor testId={parseInt(testId)} />
+    </DashboardLayout>
+  );
 };
 
 export default TestDetails;

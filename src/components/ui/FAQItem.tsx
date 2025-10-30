@@ -1,5 +1,6 @@
 export type FAQItemProps = {
   question: string;
+  answer: string;
   iconUrl?: string;
 };
 
@@ -25,8 +26,10 @@ export const FAQItem = (props: FAQItemProps) => {
       </h3>
       <div
         role="region"
-        className="text-sm box-border caret-transparent hidden leading-5 overflow-hidden"
-      ></div>
+        className="text-sm box-border caret-transparent leading-5 overflow-hidden"
+      >
+        <p className="pb-4">{props.answer}</p>
+      </div>
     </div>
   );
 };

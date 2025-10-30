@@ -1,5 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   Sandpack,
   SandpackProvider,
@@ -18,6 +27,7 @@ import { SandpackFileExplorer } from "sandpack-file-explorer";
 import {
   getAssignmentDetails,
   updateAssignmentStatus,
+  getAssignmentDetailsByAccessLink,
 } from "@/lib/test-management-utils";
 import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
 import { api } from "@/lib/api"; // Import our new API client
@@ -63,6 +73,95 @@ h1 {
 }`,
 };
 
+const ProctoringAgent = ({ accessLink, projectFiles }) => {
+  const { toast } = useToast();
+  const [aiQuestion, setAiQuestion] = useState<string | null>(null);
+  const [answer, setAnswer] = useState("");
+  const ws = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!accessLink) return;
+
+    const wsUrl = `ws://localhost:3001?accessLink=${accessLink}`;
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      console.log("WebSocket connection established");
+    };
+
+    ws.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "request.code.snapshot") {
+        ws.current?.send(
+          JSON.stringify({
+            type: "code.snapshot",
+            payload: { files: projectFiles },
+          })
+        );
+      } else if (message.type === "question") {
+        setAiQuestion(message.payload.question);
+      }
+    };
+
+    ws.current.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
+
+    ws.current.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      toast({
+        title: "Proctoring Error",
+        description: "Connection to the proctoring service was lost.",
+        variant: "destructive",
+      });
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, [accessLink, projectFiles, toast]);
+
+  const handleSendAnswer = () => {
+    if (!answer.trim()) {
+      toast({
+        title: "Empty Answer",
+        description: "Please provide an answer.",
+        variant: "destructive",
+      });
+      return;
+    }
+    ws.current?.send(
+      JSON.stringify({
+        type: "answer",
+        payload: { question: aiQuestion, answer },
+      })
+    );
+    setAiQuestion(null);
+    setAnswer("");
+  };
+
+  return (
+    <Dialog open={!!aiQuestion} onOpenChange={() => setAiQuestion(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <Bot className="mr-2" /> AI Proctor Question
+          </DialogTitle>
+          <DialogDescription>{aiQuestion}</DialogDescription>
+        </DialogHeader>
+        <Textarea
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          placeholder="Type your answer here..."
+        />
+        <DialogFooter>
+          <Button onClick={handleSendAnswer}>Send Answer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const InterviewWorkspace = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -74,7 +173,7 @@ const InterviewWorkspace = () => {
   const [activeFile, setActiveFile] = useState("/App.js");
   const [assignmentData, setAssignmentData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [projectData, setProjectData] = useState<any>(null);
+
   const [editorHeight, setEditorHeight] = useState(300);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
@@ -83,18 +182,26 @@ const InterviewWorkspace = () => {
   const [testStatus, setTestStatus] = useState<"pending" | "running" | "passed" | "failed" | "not_run">("not_run");
   const [testResults, setTestResults] = useState<any>(null);
   const [submissionId, setSubmissionId] = useState<number | null>(null);
-  const [accessLink, setAccessLink] = useState<string | null>(null); // New state for accessLink
+  const { state } = useLocation();
+  const [accessLink, setAccessLink] = useState<string | null>(state?.accessLink || null);
 
   useEffect(() => {
     const loadAssignment = async () => {
       setIsLoading(true);
       try {
-        // If we have an assignmentId, fetch the assignment
         if (assignmentId) {
-          // Use getAssignmentDetailsByAccessLink if user is not logged in, otherwise getAssignmentDetails
-          const assignmentDetails = user 
-            ? await getAssignmentDetails(parseInt(assignmentId)) 
-            : await api.get<any>(`/test-assignments/${assignmentId}`); // Assuming this endpoint is public or handles accessLink
+          let assignmentDetails;
+          const accessLinkFromState = state?.accessLink;
+
+          if (user) {
+            // Authenticated user: fetch by assignmentId
+            assignmentDetails = await getAssignmentDetails(parseInt(assignmentId));
+          } else if (accessLinkFromState) {
+            // Unauthenticated user: fetch by accessLink passed in state
+            assignmentDetails = await getAssignmentDetailsByAccessLink(accessLinkFromState);
+          } else {
+            throw new Error("Assignment details or access link not found.");
+          }
 
           if (!assignmentDetails) {
             throw new Error("Assignment not found");
@@ -102,10 +209,11 @@ const InterviewWorkspace = () => {
 
           setAssignmentData(assignmentDetails);
           setAccessLink(assignmentDetails.access_link); // Store accessLink
+          console.log('assignmentDetails:', assignmentDetails);
+          console.log('assignmentDetails.test?.project_id:', assignmentDetails.test?.project_id);
 
           // Mark the assignment as started if not already
           if (assignmentDetails.status === "pending") {
-            // Use updateAssignmentStatus (by accessLink) if not logged in, otherwise updateAssignmentStatusById
             if (user) {
               await updateAssignmentStatus(
                 parseInt(assignmentId),
@@ -123,82 +231,72 @@ const InterviewWorkspace = () => {
             }
           }
 
-          // Get the project data for this test
-          if (assignmentDetails.test?.project_id) {
-            const project = await api.get<any>(
-              `/code-projects/${assignmentDetails.test.project_id}`,
-              session?.token // This will need to be updated to use accessLink
-            );
-
-            setProjectData(project);
-
-            // Load project files from project data if available
-            if (project.files_json) {
-              try {
-                const filesData = project.files_json;
-                if (filesData !== null) {
-                  // Handle the case where files_json is already an object
-                  const parsedFiles =
-                    typeof filesData === "string"
-                      ? JSON.parse(filesData)
-                      : filesData;
-
-                  if (parsedFiles && typeof parsedFiles === "object") {
-                    setProjectFiles(parsedFiles as ProjectFiles);
-                    // Set active file to the first file
-                    const firstFilePath = Object.keys(parsedFiles)[0];
-                    if (firstFilePath) setActiveFile(firstFilePath);
-                  }
-                }
-              } catch (e) {
-                console.error("Error parsing project files:", e);
-                toast({
-                  title: "Error",
-                  description: "Failed to load project files",
-                  variant: "destructive",
-                });
-              }
-            }
-          }
-
-          // Check for existing submissions
-          const submissions = await api.get<any[]>(
-            `/submissions?assignment_id=${assignmentId}`,
-            session?.token // This will need to be updated to use accessLink
-          );
-
-          // If there are submissions, load the most recent one
-          if (submissions && submissions.length > 0) {
-            const latestSubmission = submissions[0];
-            setSubmissionId(latestSubmission.id);
-            
-            // Load test status if available
-            if (latestSubmission.test_status) {
-              setTestStatus(latestSubmission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
-            }
-            
-            // Load test results if available
-            if (latestSubmission.test_results) {
-              setTestResults(latestSubmission.test_results);
-            }
-
+          // Initialize project files from assignmentData.Test.files_json
+          if (assignmentDetails.Test?.files_json) {
             try {
-              if (latestSubmission.content) {
-                const contentStr = String(latestSubmission.content);
-                const parsedContent = JSON.parse(contentStr);
-                if (typeof parsedContent === "object") {
-                  setProjectFiles(parsedContent as ProjectFiles);
+              const filesData = assignmentDetails.Test.files_json;
+              if (filesData !== null) {
+                const parsedFiles =
+                  typeof filesData === "string"
+                    ? JSON.parse(filesData)
+                    : filesData;
+
+                if (parsedFiles && typeof parsedFiles === "object") {
+                  setProjectFiles(parsedFiles as ProjectFiles);
+                  const firstFilePath = Object.keys(parsedFiles)[0];
+                  if (firstFilePath) setActiveFile(firstFilePath);
                 }
               }
             } catch (e) {
-              // Handle single file content format
-              if (latestSubmission.file_path && latestSubmission.content) {
-                const filePath = String(latestSubmission.file_path);
-                const content = String(latestSubmission.content);
-                setProjectFiles((prev) => ({
-                  ...prev,
-                  [filePath]: content,
-                }));
+              console.error("Error parsing project files from assignmentDetails.Test.files_json:", e);
+              toast({
+                title: "Error",
+                description: "Failed to load project files from test configuration",
+                variant: "destructive",
+              });
+            }
+          }
+
+          // Only check for existing submissions if the user is authenticated
+          if (user) {
+            const submissions = await api.get<any[]>(
+              `/submissions?assignment_id=${assignmentId}`,
+              session?.token
+            );
+
+            // If there are submissions, load the most recent one
+            if (submissions && submissions.length > 0) {
+              const latestSubmission = submissions[0];
+              setSubmissionId(latestSubmission.id);
+
+              // Load test status if available
+              if (latestSubmission.test_status) {
+                setTestStatus(latestSubmission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
+              }
+
+              // Load test results if available
+              if (latestSubmission.test_results) {
+                setTestResults(latestSubmission.test_results);
+              }
+
+              try {
+                if (latestSubmission.content) {
+                  const contentStr = String(latestSubmission.content);
+                  const parsedContent = JSON.parse(contentStr);
+                  if (typeof parsedContent === "object") {
+                    setProjectFiles(parsedContent as ProjectFiles);
+                  }
+                }
+              } catch (e) {
+                // Handle single file content format
+                if (latestSubmission.file_path && latestSubmission.content) {
+                  const filePath = String(latestSubmission.file_path);
+                  const content = String(latestSubmission.content);
+                  setProjectFiles((prev) => ({
+                    ...prev,
+                    [filePath]: content,
+                  }));
+                }
               }
             }
           }
@@ -221,99 +319,64 @@ const InterviewWorkspace = () => {
   // Poll for test results if tests are running
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
-    if (testStatus === "running" && submissionId) {
+
+    if (testStatus === 'running' && submissionId) {
       interval = setInterval(async () => {
         try {
-          const submission = await api.get<any>(
-            `/submissions/${submissionId}`,
-            session?.token
-          );
-            
-          if (submission && submission.test_status !== "running") {
-            setTestStatus(submission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
-            setTestResults(submission.test_results);
+          const res = await api.get<any>(`/exec/status/${submissionId}`);
+          if (res && res.status !== 'running' && res.test_status !== 'pending') {
+            setTestStatus(res.test_status as | 'pending'| 'running'| 'passed'| 'failed'| 'not_run');
+            setTestResults(res.results);
             clearInterval(interval);
           }
         } catch (err) {
-          console.error("Error polling test results:", err);
+          console.error('Error polling test results:', err);
+          setTestStatus('failed');
+          clearInterval(interval);
         }
-      }, 5000); // Poll every 5 seconds
+      }, 3000); // Poll every 3 seconds
     }
-    
+
     return () => clearInterval(interval);
   }, [testStatus, submissionId]);
 
-  // Handle file change
-  const handleFileChange = async (files: ProjectFiles) => {
-    // Automatically save content to Supabase when files change
-    setAutosaveStatus("saving");
-    if (assignmentId) {
-      try {
-        const submission = await api.post<any>(
-          `/submissions`,
-          {
-            assignment_id: parseInt(assignmentId),
-            content: JSON.stringify(files),
-            saved_at: new Date().toISOString(),
-          },
-          session?.token
-        );
-
-        setSubmissionId(submission.id);
-        setAutosaveStatus("saved");
-      } catch (error) {
-        console.error("Error saving submission:", error);
-        setAutosaveStatus("error");
-      }
-    }
-  };
-
   const runTests = async () => {
-    if (!submissionId || !assignmentId) {
+    if (!assignmentId || !assignmentData?.Test?.id) {
       toast({
-        title: "Error",
-        description: "Cannot run tests without a valid submission",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Assignment details not loaded correctly.',
+        variant: 'destructive',
       });
       return;
     }
-    
-    setTestStatus("running");
-    
+    console.log('Frontend sending assignmentId (TestAssignment.id):', assignmentData.id);
+    console.log('Frontend sending projectId (Test.id):', assignmentData.Test.id);
+
+    setTestStatus('running');
+    setTestResults(null);
+
     try {
-      // Update the submission test status
-      await api.put<any>(
-        `/submissions/${submissionId}`,
-        { test_status: "running" },
-        session?.token
-      );
-        
-      // Call the backend endpoint to create GitHub repo and run tests
-      // This endpoint needs to be created in the backend
-      await api.post<any>(
-        `/github/create-repo-and-run-tests`,
-        {
-          assignment_id: parseInt(assignmentId),
-          submission_id: submissionId,
-          project_files: projectFiles,
-          test_id: assignmentData.test.id
-        },
-        session?.token
-      );
-      
+      const payload = {
+        assignmentId: assignmentData.id,
+        files: projectFiles,
+        projectId: assignmentData.Test.id,
+      };
+      console.log('Frontend sending payload:', payload);
+      const response = await api.post<any>('/exec/submit', payload);
+
+      setSubmissionId(response.submissionId);
+
       toast({
-        title: "Tests Started",
-        description: "Your code is being tested. Results will appear shortly.",
+        title: 'Tests Started',
+        description: 'Your code is being tested. Results will appear shortly.',
       });
-      
     } catch (error) {
-      console.error("Error running tests:", error);
-      setTestStatus("not_run");
+      console.error('Error running tests:', error);
+      setTestStatus('failed');
       toast({
-        title: "Error",
-        description: "Failed to run tests. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to start tests. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -342,6 +405,7 @@ const InterviewWorkspace = () => {
             assignment_id: parseInt(assignmentId),
             content: JSON.stringify(projectFiles),
             saved_at: new Date().toISOString(),
+            accessLink: accessLink,
           },
           session?.token
         );
@@ -356,7 +420,7 @@ const InterviewWorkspace = () => {
       
       // Mark the assignment as completed
       const updated = await updateAssignmentStatus(
-        parseInt(assignmentId),
+        accessLink, // Use the accessLink state variable
         "completed",
         false,
         true
@@ -433,6 +497,7 @@ const InterviewWorkspace = () => {
 
   return (
     <div className="flex flex-col h-screen">
+      <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} />
       {/* Header with auto-save status and submission button */}
       <WorkspaceHeader 
         testTitle={assignmentData?.test?.test_title || "Coding Test"} 
@@ -455,6 +520,8 @@ const InterviewWorkspace = () => {
                 "react-dom": "^18.0.0",
               },
             }}
+            onFilesChange={setProjectFiles}
+            onActiveFileChange={setActiveFile}
           >
             <SandpackLayout>
               <div

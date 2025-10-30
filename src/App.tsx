@@ -29,10 +29,9 @@ import ThankYou from "./pages/ThankYou";
 import Welcome from "./pages/Welcome";
 import EvaluationResult from "./pages/dashboard/EvaluationResult";
 import TestOverviewPage from "./pages/dashboard/TestOverviewPage";
+import PreviewChallenge from "./pages/PreviewChallenge";
 
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { FeedbackWidget } from "@/components/FeedbackWidget";
+import HomeLayout from "@/components/HomeLayout";
 
 // Role-based protected route component
 interface ProtectedRouteProps {
@@ -68,9 +67,10 @@ const App = () => (
         <AuthProvider>
           <Toaster />
           <Sonner />
-          <Header />
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<HomeLayout><Index /></HomeLayout>} />
+            <Route path="/auth" element={<SignIn />} />
+            <Route path="/signup" element={<SignIn />} />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/candidate-signin" element={<SignIn userType="candidate" />} />
             <Route path="/get-started" element={<GetStarted />} />
@@ -230,11 +230,11 @@ const App = () => (
             
 
 
+            <Route path="/preview/challenge/:id" element={<PreviewChallenge />} />
+
             {/* Catch-all Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-          <Footer />
-          <FeedbackWidget />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

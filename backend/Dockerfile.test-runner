@@ -17,6 +17,8 @@ WORKDIR /workspace
 RUN chown -R node:node /usr/src/app
 RUN chown -R node:node /workspace
 
+ENV BABEL_ENV=test
+
 USER node
 
 CMD ["/bin/sh"]

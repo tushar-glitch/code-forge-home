@@ -11,7 +11,8 @@ import { saveTestConfiguration, getTestConfigurations } from "@/lib/test-managem
 import { Loader2, Trash2, PlusCircle, Save } from "lucide-react";
 
 interface TestEditorProps {
-  testId: number;
+  testId?: number;
+  onSave: (configs: TestConfig[]) => Promise<void>;
 }
 
 interface TestConfig {
@@ -23,22 +24,14 @@ interface TestConfig {
   enabled: boolean;
 }
 
-export function TestEditor({ testId }: TestEditorProps) {
+export function TestEditor({ testId, onSave }: TestEditorProps) {
   const { toast } = useToast();
-  const [testConfigs, setTestConfigs] = useState<TestConfig[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    const loadConfigurations = async () => {
-      setIsLoading(true);
-      try {
-        const configs = await getTestConfigurations(testId);
-        setTestConfigs(configs.length > 0 ? configs : [{
-          test_id: testId,
-          name: "Basic Functionality",
-          description: "Tests the basic functionality of the application",
-          test_script: `
+  const [testConfigs, setTestConfigs] = useState<TestConfig[]>(() => [
+    {
+      test_id: testId || 0,
+      name: "Basic Functionality",
+      description: "Tests the basic functionality of the application",
+      test_script: `
 // Example test script
 import { test, expect } from '@playwright/test';
 
@@ -46,23 +39,11 @@ test('App renders without crashing', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toBeVisible();
 });
-          `.trim(),
-          enabled: true
-        }]);
-      } catch (error) {
-        console.error("Error loading test configurations:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load test configurations",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadConfigurations();
-  }, [testId, toast]);
+      `.trim(),
+      enabled: true
+    }
+  ]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleAddConfig = () => {
     setTestConfigs([
@@ -101,37 +82,18 @@ test('New test', async ({ page }) => {
   const handleSaveConfigurations = async () => {
     setIsSaving(true);
     try {
-      const savePromises = testConfigs.map(config => saveTestConfiguration(config));
-      const results = await Promise.all(savePromises);
-      
-      // Update the test configs with the saved ones (including IDs for new configs)
-      const updatedConfigs = results.filter(Boolean) as TestConfig[];
-      if (updatedConfigs.length === testConfigs.length) {
-        setTestConfigs(updatedConfigs);
-        toast({
-          title: "Success",
-          description: "Test configurations saved successfully"
-        });
-      }
+      await onSave(testConfigs);
     } catch (error) {
       console.error("Error saving test configurations:", error);
       toast({
         title: "Error",
-        description: "Failed to save some test configurations",
+        description: "Failed to save test configurations",
         variant: "destructive"
       });
     } finally {
       setIsSaving(false);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

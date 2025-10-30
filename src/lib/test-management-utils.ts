@@ -77,6 +77,7 @@ export const createTest = async (testData: {
   test_files_json: any;
   technology: string;
   challengeId?: string; // Add challengeId as an optional field
+  test_configurations?: any[];
 }): Promise<string | null> => {
   try {
     const { user, session } = getAuthData();
@@ -103,6 +104,7 @@ export const createTest = async (testData: {
         technology: testData.technology,
         user_id: user.id, // Add user ID to track test ownership
         ...(testData.challengeId && { challengeId: testData.challengeId }), // Conditionally add challengeId
+        test_configurations: testData.test_configurations,
       },
       session.token
     );

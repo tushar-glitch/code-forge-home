@@ -13,21 +13,20 @@ export const PricingSection = () => {
           </h2>
         </div>
         <p className="text-gray-500 text-lg box-border caret-transparent leading-7 max-w-lg text-center md:text-xl">
-          Start collecting feedback for free. Upgrade as your needs grow.
+          Find the perfect plan to scale your technical hiring.
         </p>
         <div className="box-border caret-transparent gap-x-5 grid grid-cols-[repeat(1,minmax(0px,1fr))] gap-y-5 w-full mt-7 mx-auto md:grid-cols-[repeat(2,minmax(0px,1fr))]">
           <PricingCard
             planName="Free"
             price="Free"
             priceSuffix="forever"
-            description="For businesses that just started"
+            description="For individuals and small teams getting started with technical assessments."
             features={[
-              "1 project",
-              "Collect up to 20 Responses",
-              "Collect up to 20 Bug Reports",
-              "Collect up to 20 Feature Requests",
-              "Public roadmap page",
-              "Live chat with 3 days history",
+              "1 active assessment",
+              "Up to 5 candidates/month",
+              "Basic reporting",
+              "Standard challenge library",
+              "Email support",
             ]}
             buttonText="Get Started"
             buttonHref="/auth?redirect=pricing"
@@ -36,26 +35,23 @@ export const PricingSection = () => {
           <PricingCard
             planName="Pro"
             badge={{
-              text: "Launching deal",
+              text: "Most Popular",
               iconUrl: "https://c.animaapp.com/mh3bm6d0mEyMQZ/assets/icon-34.svg",
             }}
-            price="$49"
-            originalPrice="$69"
+            price="$99"
+            originalPrice="$129"
             priceSuffix="/month"
-            description="For businesses that want to grow"
+            description="For growing teams needing advanced assessment capabilities."
             features={[
-              "2 Included projects",
-              "Unlimited active widgets",
-              "Collect Unlimited feedback",
-              "Full live chat history",
-              "Invite team members",
-              "Public roadmap page",
-              "Remove branding option",
-              "Webhook access",
-              "Priority email support",
+              "Unlimited active assessments",
+              "Up to 50 candidates/month",
+              "Advanced analytics",
+              "Custom challenge creation",
+              "Priority email & chat support",
+              "Integrations (ATS, HRIS)",
             ]}
-            additionalInfo="+ $15/mo per additional project"
-            buttonText="Get Started"
+            additionalInfo="+ $2/candidate over 50"
+            buttonText="Choose Pro"
             buttonHref="/auth?redirect=pricing"
             buttonVariant=""
           />
