@@ -1,4 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   Sandpack,
@@ -15,6 +24,7 @@ import {
   CheckCircle,
   XCircle,
   Code2,
+  Bot,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -65,6 +75,96 @@ h1 {
 }`,
 };
 
+// CLIENT'S PROCTORING AGENT COMPONENT (KEEP THIS)
+const ProctoringAgent = ({ accessLink, projectFiles }) => {
+  const { toast } = useToast();
+  const [aiQuestion, setAiQuestion] = useState<string | null>(null);
+  const [answer, setAnswer] = useState("");
+  const ws = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!accessLink) return;
+
+    const wsUrl = `ws://localhost:3001?accessLink=${accessLink}`;
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      console.log("WebSocket connection established");
+    };
+
+    ws.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "request.code.snapshot") {
+        ws.current?.send(
+          JSON.stringify({
+            type: "code.snapshot",
+            payload: { files: projectFiles },
+          })
+        );
+      } else if (message.type === "question") {
+        setAiQuestion(message.payload.question);
+      }
+    };
+
+    ws.current.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
+
+    ws.current.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      toast({
+        title: "Proctoring Error",
+        description: "Connection to the proctoring service was lost.",
+        variant: "destructive",
+      });
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, [accessLink, projectFiles, toast]);
+
+  const handleSendAnswer = () => {
+    if (!answer.trim()) {
+      toast({
+        title: "Empty Answer",
+        description: "Please provide an answer.",
+        variant: "destructive",
+      });
+      return;
+    }
+    ws.current?.send(
+      JSON.stringify({
+        type: "answer",
+        payload: { question: aiQuestion, answer },
+      })
+    );
+    setAiQuestion(null);
+    setAnswer("");
+  };
+
+  return (
+    <Dialog open={!!aiQuestion} onOpenChange={() => setAiQuestion(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <Bot className="mr-2" /> AI Proctor Question
+          </DialogTitle>
+          <DialogDescription>{aiQuestion}</DialogDescription>
+        </DialogHeader>
+        <Textarea
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          placeholder="Type your answer here..."
+        />
+        <DialogFooter>
+          <Button onClick={handleSendAnswer}>Send Answer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const InterviewWorkspace = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -88,7 +188,7 @@ const InterviewWorkspace = () => {
   const [submissionId, setSubmissionId] = useState<number | null>(null);
   const [accessLink, setAccessLink] = useState<string | null>(location.state?.accessLink || null);
 
-  // Load assignment (handles both recruiter + candidate flows)
+  // YOUR CORE LOGIC FOR LOADING ASSIGNMENT (KEEP THIS)
   useEffect(() => {
     const loadAssignment = async () => {
       console.log("🔹 loadAssignment triggered for assignmentId:", assignmentId);
@@ -181,7 +281,7 @@ const InterviewWorkspace = () => {
     loadAssignment();
   }, [user, assignmentId, accessLink]);
 
-  // Poll test results
+  // YOUR POLLING LOGIC (KEEP THIS)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (testStatus === "running" && submissionId) {
@@ -222,7 +322,7 @@ const InterviewWorkspace = () => {
     }
   };
 
-  // Run tests — automatically creates temp submission if needed
+  // YOUR GITHUB API RUN TESTS LOGIC (KEEP THIS)
   const runTests = async () => {
     console.log("🔹 runTests triggered");
 
@@ -264,7 +364,6 @@ const InterviewWorkspace = () => {
           submission_id: currentSubmissionId,
           project_files: projectFiles,
           test_id: assignmentData?.test?.id,
-          access_link: assignmentData?.access_link,
         },
         session?.token
       );
@@ -284,7 +383,7 @@ const InterviewWorkspace = () => {
     }
   };
 
-  // Submit final test
+  // YOUR SUBMIT LOGIC (KEEP THIS)
   const handleSubmit = async () => {
     if (!assignmentId) return;
     setIsSubmitting(true);
@@ -368,6 +467,9 @@ const InterviewWorkspace = () => {
 
   return (
     <div className="flex flex-col h-screen">
+      {/* CLIENT'S PROCTORING AGENT (KEEP THIS) */}
+      <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} />
+      
       <WorkspaceHeader
         testTitle={assignmentData?.test?.test_title || "Coding Test"}
         autosaveStatus={autosaveStatus}
@@ -386,6 +488,8 @@ const InterviewWorkspace = () => {
               "react-dom": "^18.0.0",
             },
           }}
+          onFilesChange={setProjectFiles}
+          onActiveFileChange={setActiveFile}
         >
           <SandpackLayout>
             <div style={{ display: "flex", width: "100%", height: `${editorHeight}px`, backgroundColor: `var(--sp-colors-surface1)` }}>

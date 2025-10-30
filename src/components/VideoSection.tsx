@@ -6,10 +6,11 @@ export const VideoSection = () => {
       <div className="box-border caret-transparent w-full mx-auto px-8">
         <div className="box-border caret-transparent text-center mb-12">
           <h2 className="text-3xl font-semibold box-border caret-transparent tracking-[-0.75px] leading-9 mb-4 md:text-5xl md:tracking-[-1.2px] md:leading-[48px]">
-            See Feedbask in action
+            How it <span className="text-violet-500 text-3xl box-border caret-transparent tracking-[-0.75px] leading-9 md:text-5xl md:tracking-[-1.2px] md:leading-[48px]">works</span>
           </h2>
           <p className="text-gray-600 text-lg box-border caret-transparent leading-7 mb-2">
-            Watch how easy it is to collect and manage feedback
+            Our platform provides an end-to-end solution for assessing developer skills
+            through practical, real-world coding challenges
           </p>
         </div>
         <div className="relative box-border caret-transparent max-w-4xl mt-8 mx-auto">

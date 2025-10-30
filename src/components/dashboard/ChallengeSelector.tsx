@@ -78,7 +78,7 @@ export const ChallengeSelector: React.FC<ChallengeSelectorProps> = ({ onSelect, 
   }, [session, domain, technology, page]);
 
   const handlePreview = (challenge: Challenge) => {
-    window.open(`/preview/project/${challenge.project_id}`, '_blank');
+    window.open(`/preview/challenge/${challenge.id}`, '_blank');
   };
 
   if (isLoading) {
