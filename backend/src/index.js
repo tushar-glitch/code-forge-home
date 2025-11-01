@@ -31,9 +31,20 @@ const { WebSocketServer } = require('ws');
 const url = require('url');
 const { saveProctoringEvent } = require('./controllers/proctoring.controller');
 const { suspicionEngine } = require('./services/suspicion.service');
+const morgan = require('morgan');
+const logger = require('./logger');
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+
+// Integrate morgan with winston
+const stream = {
+  write: (message) => logger.info(message.trim())
+};
+
+app.use(morgan('combined', { stream }));
+
 
 app.use(cors());
 app.use(express.json());
@@ -70,7 +81,7 @@ app.get('/', (req, res) => {
   res.send('Hello from the backend!');
 });
 
-const server = app.listen(port, () => {
+const server = app.listen(port,'0.0.0.0', () => {
   console.log(`Backend server is running on http://localhost:${port}`);
 });
 

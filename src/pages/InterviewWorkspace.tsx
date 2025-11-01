@@ -8,6 +8,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Bot } from "lucide-react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   Sandpack,
@@ -15,7 +16,6 @@ import {
   SandpackLayout,
   SandpackCodeEditor,
   SandpackPreview,
-  SandpackConsole,
 } from "@codesandbox/sandpack-react";
 import { atomDark } from "@codesandbox/sandpack-themes";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import {
   CheckCircle,
   XCircle,
   Code2,
-  Bot,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -75,30 +74,39 @@ h1 {
 }`,
 };
 
-// CLIENT'S PROCTORING AGENT COMPONENT (KEEP THIS)
-const ProctoringAgent = ({ accessLink, projectFiles }) => {
+// ========================================
+// Proctoring Agent Component - FIXED
+// ========================================
+const ProctoringAgent = ({ accessLink, projectFiles, wsRef }) => {
   const { toast } = useToast();
   const [aiQuestion, setAiQuestion] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
-  const ws = useRef<WebSocket | null>(null);
+  const projectFilesRef = useRef(projectFiles);
+
+  // Keep projectFiles ref updated
+  useEffect(() => {
+    projectFilesRef.current = projectFiles;
+  }, [projectFiles]);
 
   useEffect(() => {
     if (!accessLink) return;
 
     const wsUrl = `ws://localhost:3001?accessLink=${accessLink}`;
-    ws.current = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-    ws.current.onopen = () => {
-      console.log("WebSocket connection established");
+    ws.onopen = () => {
+      console.log("WebSocket connected to proctoring agent");
     };
 
-    ws.current.onmessage = (event) => {
+    ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.type === "request.code.snapshot") {
-        ws.current?.send(
+        const currentFiles = projectFilesRef.current;
+        ws.send(
           JSON.stringify({
             type: "code.snapshot",
-            payload: { files: projectFiles },
+            payload: { files: currentFiles },
           })
         );
       } else if (message.type === "question") {
@@ -106,23 +114,27 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
       }
     };
 
-    ws.current.onclose = () => {
-      console.log("WebSocket connection closed");
+    ws.onclose = () => {
+      console.log("Proctoring WebSocket closed");
+      wsRef.current = null;
     };
 
-    ws.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
+    ws.onerror = (error) => {
+      console.error("Proctoring WebSocket error:", error);
       toast({
         title: "Proctoring Error",
-        description: "Connection to the proctoring service was lost.",
+        description: "Connection to proctoring service lost.",
         variant: "destructive",
       });
     };
 
     return () => {
-      ws.current?.close();
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+      wsRef.current = null;
     };
-  }, [accessLink, projectFiles, toast]);
+  }, [accessLink, toast, wsRef]);
 
   const handleSendAnswer = () => {
     if (!answer.trim()) {
@@ -133,14 +145,29 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
       });
       return;
     }
-    ws.current?.send(
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      toast({
+        title: "Connection Lost",
+        description: "Cannot send answer. Reconnecting...",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    wsRef.current.send(
       JSON.stringify({
         type: "answer",
         payload: { question: aiQuestion, answer },
       })
     );
+
     setAiQuestion(null);
     setAnswer("");
+    toast({
+      title: "Answer Sent",
+      description: "Your answer has been recorded.",
+    });
   };
 
   return (
@@ -156,8 +183,12 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Type your answer here..."
+          rows={5}
         />
         <DialogFooter>
+          <Button variant="outline" onClick={() => setAiQuestion(null)}>
+            Skip
+          </Button>
           <Button onClick={handleSendAnswer}>Send Answer</Button>
         </DialogFooter>
       </DialogContent>
@@ -165,6 +196,9 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
   );
 };
 
+// ========================================
+// Main Interview Workspace Component
+// ========================================
 const InterviewWorkspace = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -177,7 +211,7 @@ const InterviewWorkspace = () => {
   const [activeFile, setActiveFile] = useState("/App.js");
   const [assignmentData, setAssignmentData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [projectData, setProjectData] = useState<any>(null);
+
   const [editorHeight, setEditorHeight] = useState(300);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
@@ -187,24 +221,34 @@ const InterviewWorkspace = () => {
   const [testResults, setTestResults] = useState<any>(null);
   const [submissionId, setSubmissionId] = useState<number | null>(null);
   const [accessLink, setAccessLink] = useState<string | null>(location.state?.accessLink || null);
+  
+  // WebSocket ref for proctoring
+  const wsRef = useRef<WebSocket | null>(null);
 
-  // YOUR CORE LOGIC FOR LOADING ASSIGNMENT (KEEP THIS)
+  // ========================================
+  // Load Assignment Data
+  // ========================================
   useEffect(() => {
     const loadAssignment = async () => {
-      console.log("🔹 loadAssignment triggered for assignmentId:", assignmentId);
+      console.log("loadAssignment triggered for assignmentId:", assignmentId);
       setIsLoading(true);
       try {
         let assignmentDetails;
 
         if (user) {
-          console.log("🔹 Logged-in recruiter flow");
+          console.log("Logged-in recruiter flow");
           assignmentDetails = await getAssignmentDetails(parseInt(assignmentId!));
         } else {
-          console.log("🔹 Candidate flow using access link");
-          assignmentDetails = await getAssignmentDetailsByAccessLink(accessLink || assignmentId!);
+          console.log("Candidate flow using access link");
+          const accessLinkFromState = location.state?.accessLink;
+          if (accessLinkFromState) {
+            assignmentDetails = await getAssignmentDetailsByAccessLink(accessLinkFromState);
+          } else {
+            throw new Error("Access link not found in state");
+          }
         }
 
-        console.log("✅ Assignment details loaded:", assignmentDetails);
+        console.log("Assignment details loaded:", assignmentDetails);
 
         if (!assignmentDetails) throw new Error("Assignment not found");
 
@@ -213,61 +257,82 @@ const InterviewWorkspace = () => {
 
         // Update status to in-progress if pending
         if (assignmentDetails.status === "pending") {
-          console.log("🔹 Updating assignment status to in-progress...");
+          console.log("Updating assignment status to in-progress...");
           if (user) {
             await updateAssignmentStatus(parseInt(assignmentId!), "in-progress", true, false);
           } else if (assignmentDetails.access_link) {
             await updateAssignmentStatus(assignmentDetails.access_link, "in-progress", true, false);
           }
-          console.log("✅ Status updated to in-progress");
+          console.log("Status updated to in-progress");
         }
 
-        // Load project files
-        if (assignmentDetails.test?.project_id) {
-          const project = await api.get<any>(
-            `/code-projects/${assignmentDetails.test.project_id}`,
-            session?.token
-          );
+        // Load project files from Test.files_json
+        if (assignmentDetails.Test?.files_json) {
+          try {
+            const filesData = assignmentDetails.Test.files_json;
+            if (filesData !== null) {
+              const parsedFiles =
+                typeof filesData === "string" ? JSON.parse(filesData) : filesData;
 
-          setProjectData(project);
-
-          if (project.files_json) {
-            const filesData = project.files_json;
-            const parsedFiles = typeof filesData === "string" ? JSON.parse(filesData) : filesData;
-            setProjectFiles(parsedFiles);
-            const firstFilePath = Object.keys(parsedFiles)[0];
-            if (firstFilePath) setActiveFile(firstFilePath);
+              if (parsedFiles && typeof parsedFiles === "object") {
+                console.log("Setting project files:", Object.keys(parsedFiles));
+                setProjectFiles(parsedFiles as ProjectFiles);
+                const firstFilePath = Object.keys(parsedFiles)[0];
+                if (firstFilePath) setActiveFile(firstFilePath);
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing project files:", e);
+            toast({
+              title: "Error",
+              description: "Failed to load project files from test configuration",
+              variant: "destructive",
+            });
           }
         }
 
-        // Load any existing submissions
-        const submissions = await api.get<any[]>(
-          `/submissions?assignment_id=${assignmentId}`,
-          session?.token
-        );
+        // Load existing submissions (only for authenticated users)
+        if (user) {
+          const submissions = await api.get<any[]>(
+            `/submissions?assignment_id=${assignmentId}`,
+            session?.token
+          );
 
-        if (submissions?.length > 0) {
-          const latest = submissions[0];
-          setSubmissionId(latest.id);
-          if (latest.test_status) setTestStatus(latest.test_status);
-          if (latest.test_results) setTestResults(latest.test_results);
+          if (submissions && submissions.length > 0) {
+            const latestSubmission = submissions[0];
+            setSubmissionId(latestSubmission.id);
 
-          try {
-            if (latest.content) {
-              const parsed = JSON.parse(String(latest.content));
-              if (typeof parsed === "object") setProjectFiles(parsed);
+            if (latestSubmission.test_status) {
+              setTestStatus(latestSubmission.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
             }
-          } catch {
-            if (latest.file_path && latest.content) {
-              setProjectFiles((prev) => ({
-                ...prev,
-                [latest.file_path]: String(latest.content),
-              }));
+
+            if (latestSubmission.test_results) {
+              setTestResults(latestSubmission.test_results);
+            }
+
+            // Load saved code from previous submission
+            try {
+              if (latestSubmission.content) {
+                const contentStr = String(latestSubmission.content);
+                const parsedContent = JSON.parse(contentStr);
+                if (typeof parsedContent === "object") {
+                  setProjectFiles(parsedContent as ProjectFiles);
+                }
+              }
+            } catch (e) {
+              if (latestSubmission.file_path && latestSubmission.content) {
+                const filePath = String(latestSubmission.file_path);
+                const content = String(latestSubmission.content);
+                setProjectFiles((prev) => ({
+                  ...prev,
+                  [filePath]: content,
+                }));
+              }
             }
           }
         }
       } catch (error: any) {
-        console.error("❌ Error loading assignment:", error);
+        console.error("Error loading assignment:", error);
         toast({
           title: "Error",
           description: error.message || "Failed to load the assignment data",
@@ -279,58 +344,155 @@ const InterviewWorkspace = () => {
     };
 
     loadAssignment();
-  }, [user, assignmentId, accessLink]);
+  }, [user, assignmentId, location.state?.accessLink, session?.token, toast]);
 
-  // YOUR POLLING LOGIC (KEEP THIS)
+  // ========================================
+  // Poll Test Results (EXEC API)
+  // ========================================
   useEffect(() => {
     let interval: NodeJS.Timeout;
+
     if (testStatus === "running" && submissionId) {
       interval = setInterval(async () => {
         try {
-          const submission = await api.get<any>(`/submissions/${submissionId}`, session?.token);
-          if (submission && submission.test_status !== "running") {
-            setTestStatus(submission.test_status);
-            setTestResults(submission.test_results);
+          const res = await api.get<any>(`/exec/status/${submissionId}`);
+          console.log("Polling test status:", res);
+
+          if (res && res.test_status && res.test_status !== "pending" && res.test_status !== "running") {
+            setTestStatus(res.test_status);
+            setTestResults(res.results);
             clearInterval(interval);
+            
+            toast({
+              title: res.test_status === "passed" ? "Tests Passed!" : "Tests Failed",
+              description: res.test_status === "passed" 
+                ? "All tests passed successfully!" 
+                : "Some tests failed. Check the results below.",
+              variant: res.test_status === "passed" ? "default" : "destructive",
+            });
           }
         } catch (err) {
-          console.error("❌ Error polling test results:", err);
+          console.error("Error polling test results:", err);
+          setTestStatus("failed");
+          clearInterval(interval);
         }
-      }, 5000);
+      }, 3000);
     }
-    return () => clearInterval(interval);
-  }, [testStatus, submissionId]);
 
-  // Auto-save changes
-  const handleFileChange = async (files: ProjectFiles) => {
-    setAutosaveStatus("saving");
-    try {
-      const submission = await api.post<any>(
-        `/submissions`,
-        {
-          assignment_id: parseInt(assignmentId!),
-          content: JSON.stringify(files),
-          saved_at: new Date().toISOString(),
-        },
-        session?.token
+    return () => clearInterval(interval);
+  }, [testStatus, submissionId, toast]);
+
+  // ========================================
+  // Auto-save Project Files
+  // ========================================
+  useEffect(() => {
+    if (!assignmentId || !assignmentData) return;
+
+    const saveTimeout = setTimeout(async () => {
+      setAutosaveStatus("saving");
+      try {
+        await api.post<any>(
+          `/submissions`,
+          {
+            assignment_id: parseInt(assignmentId),
+            content: JSON.stringify(projectFiles),
+            saved_at: new Date().toISOString(),
+          },
+          session?.token
+        );
+        setAutosaveStatus("saved");
+      } catch (error) {
+        console.error("Error saving submission:", error);
+        setAutosaveStatus("error");
+      }
+    }, 2000);
+
+    return () => clearTimeout(saveTimeout);
+  }, [projectFiles, assignmentId, assignmentData, session?.token]);
+
+  // ========================================
+  // Run Tests (EXEC API)
+  // ========================================
+  const runTests = async () => {
+    if (!assignmentData?.Test?.id) {
+      toast({
+        title: "Error",
+        description: "Test configuration not loaded correctly.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log("runTests triggered");
+    console.log("Sending assignmentId:", assignmentData.id);
+    console.log("Sending projectId:", assignmentData.Test.id);
+    console.log("projectFiles keys:", Object.keys(projectFiles));
+
+    // Trigger proctoring snapshot
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "code.snapshot",
+          payload: { files: projectFiles },
+        })
       );
-      setSubmissionId(submission.id);
-      setAutosaveStatus("saved");
+      console.log("Sent code snapshot to proctoring agent");
+    } else {
+      console.log("WebSocket not open, skipping proctoring snapshot");
+    }
+
+    setTestStatus("running");
+    setTestResults(null);
+
+    try {
+      const payload = {
+        assignmentId: assignmentData.id,
+        files: projectFiles,
+        projectId: assignmentData.Test.id,
+      };
+      
+      console.log("Sending to /exec/submit:", payload);
+      
+      const response = await api.post<any>("/exec/submit", payload);
+
+      console.log("Test execution started:", response);
+      
+      setSubmissionId(response.submissionId);
+
+      toast({
+        title: "Tests Started",
+        description: "Your code is being tested. Results will appear shortly.",
+      });
     } catch (error) {
-      console.error("❌ Error saving submission:", error);
-      setAutosaveStatus("error");
+      console.error("Error running tests:", error);
+      setTestStatus("failed");
+      toast({
+        title: "Error",
+        description: "Failed to start tests. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  // YOUR GITHUB API RUN TESTS LOGIC (KEEP THIS)
-  const runTests = async () => {
-    console.log("🔹 runTests triggered");
+  // ========================================
+  // Submit Final Assignment
+  // ========================================
+  const handleSubmit = async () => {
+    if (!assignmentId && !accessLink) {
+      toast({
+        title: "Error",
+        description: "Assignment information is missing.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    let currentSubmissionId = submissionId;
+    setIsSubmitting(true);
 
-    if (!currentSubmissionId) {
-      try {
-        console.log("🔹 Creating temporary submission...");
+    try {
+      let finalSubmissionId = submissionId;
+
+      if (!finalSubmissionId) {
         const submission = await api.post<any>(
           `/submissions`,
           {
@@ -341,82 +503,37 @@ const InterviewWorkspace = () => {
           },
           session?.token
         );
-        currentSubmissionId = submission.id;
-        setSubmissionId(currentSubmissionId);
-      } catch (err) {
-        toast({
-          title: "Error",
-          description: "Could not create temporary submission for testing.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    setTestStatus("running");
-
-    try {
-      await api.post<any>(
-        `/github/create-repo-and-run-tests`,
-        {
-          assignment_id: assignmentId ? parseInt(assignmentId) : null,
-          access_link: accessLink || null,
-          submission_id: currentSubmissionId,
-          project_files: projectFiles,
-          test_id: assignmentData?.test?.id,
-        },
-        session?.token
-      );
-
-      toast({
-        title: "Tests Started",
-        description: "Your code is being tested. Results will appear shortly.",
-      });
-    } catch (error) {
-      console.error("❌ Error running tests:", error);
-      setTestStatus("not_run");
-      toast({
-        title: "Error",
-        description: "Failed to run tests. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // YOUR SUBMIT LOGIC (KEEP THIS)
-  const handleSubmit = async () => {
-    if (!assignmentId) return;
-    setIsSubmitting(true);
-    try {
-      let finalSubmissionId = submissionId;
-
-      if (!finalSubmissionId) {
-        const submission = await api.post<any>(
-          `/submissions`,
-          {
-            assignment_id: parseInt(assignmentId),
-            content: JSON.stringify(projectFiles),
-            saved_at: new Date().toISOString(),
-          },
-          session?.token
-        );
         finalSubmissionId = submission.id;
+        setSubmissionId(finalSubmissionId);
       }
 
       if (testStatus === "not_run" || testStatus === "pending") {
         await runTests();
       }
 
-      await updateAssignmentStatus(parseInt(assignmentId), "completed", false, true);
+      if (user && assignmentId) {
+        await updateAssignmentStatus(parseInt(assignmentId), "completed", false, true);
+      } else if (accessLink) {
+        await updateAssignmentStatus(accessLink, "completed", false, true);
+      }
 
       toast({
         title: "Submission Successful",
         description: "Your work has been submitted for review.",
       });
 
-      setTimeout(() => navigate("/candidate-dashboard"), 2000);
+      setTimeout(() => {
+        if (user) {
+          navigate("/candidate-dashboard");
+        } else {
+          toast({
+            title: "Thank You!",
+            description: "Your submission has been recorded. You can close this window.",
+          });
+        }
+      }, 2000);
     } catch (error) {
-      console.error("❌ Error submitting assignment:", error);
+      console.error("Error submitting assignment:", error);
       toast({
         title: "Error",
         description: "Failed to submit your work. Please try again.",
@@ -426,6 +543,9 @@ const InterviewWorkspace = () => {
     }
   };
 
+  // ========================================
+  // Editor Resize Handler
+  // ========================================
   const handleDragStart = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -456,28 +576,33 @@ const InterviewWorkspace = () => {
     };
   }, [isDragging, startY, startHeight]);
 
+  // ========================================
+  // Loading State
+  // ========================================
   if (isLoading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+      <div className="h-screen w-full flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
         <p>Loading workspace...</p>
       </div>
     );
   }
 
+  // ========================================
+  // Main Render
+  // ========================================
   return (
     <div className="flex flex-col h-screen">
-      {/* CLIENT'S PROCTORING AGENT (KEEP THIS) */}
-      <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} />
-      
+      <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} wsRef={wsRef} />
+
       <WorkspaceHeader
-        testTitle={assignmentData?.test?.test_title || "Coding Test"}
+        testTitle={assignmentData?.Test?.test_title || "Coding Test"}
         autosaveStatus={autosaveStatus}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
       />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         <SandpackProvider
           theme={atomDark}
           files={projectFiles}
@@ -488,16 +613,37 @@ const InterviewWorkspace = () => {
               "react-dom": "^18.0.0",
             },
           }}
-          onFilesChange={setProjectFiles}
-          onActiveFileChange={setActiveFile}
         >
           <SandpackLayout>
-            <div style={{ display: "flex", width: "100%", height: `${editorHeight}px`, backgroundColor: `var(--sp-colors-surface1)` }}>
-              <div style={{ minWidth: 150, maxWidth: "300px", overflow: "hidden" }}>
+            <div
+              style={{
+                display: "flex",
+                width: "100%",
+                height: `${editorHeight}px`,
+                backgroundColor: `var(--sp-colors-surface1)`,
+              }}
+            >
+              <div
+                style={{
+                  minWidth: 150,
+                  maxWidth: "300px",
+                  overflow: "hidden",
+                }}
+              >
                 <SandpackFileExplorer />
               </div>
-              <div style={{ flex: "min-content" }}>
-                <SandpackCodeEditor showLineNumbers showTabs wrapContent closableTabs className="flex-1 h-full" />
+              <div style={{ flex: 1 }}>
+                <SandpackCodeEditor
+                  showLineNumbers={true}
+                  style={{
+                    height: "100%",
+                    overflow: "auto",
+                  }}
+                  showInlineErrors
+                  showTabs
+                  wrapContent
+                  closableTabs
+                />
               </div>
             </div>
 
@@ -510,52 +656,75 @@ const InterviewWorkspace = () => {
               }}
               onMouseDown={handleDragStart}
             >
-              <div style={{ width: "100%", height: "4px", backgroundColor: "#404040" }} />
+              <div
+                style={{
+                  width: "100%",
+                  height: "4px",
+                  backgroundColor: "#404040",
+                  margin: "2px 0",
+                }}
+              />
             </div>
 
-            <SandpackPreview showNavigator showRefreshButton showOpenInCodeSandbox={false} />
+            <SandpackPreview
+              showNavigator
+              showRefreshButton
+              showOpenInCodeSandbox={false}
+            />
           </SandpackLayout>
         </SandpackProvider>
 
-        <div className="border-t border-border p-4">
-          <div className="flex justify-between items-center">
+        <div className="border-t border-border p-4 bg-background">
+          <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Test Results</h2>
             <Button onClick={runTests} disabled={testStatus === "running"}>
-              {testStatus === "running" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {testStatus === "passed" && <CheckCircle className="mr-2 h-4 w-4" />}
-              {testStatus === "failed" && <XCircle className="mr-2 h-4 w-4" />}
+              {testStatus === "running" && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {testStatus === "passed" && (
+                <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
+              )}
+              {testStatus === "failed" && (
+                <XCircle className="mr-2 h-4 w-4 text-red-500" />
+              )}
               {testStatus === "running" ? "Running Tests..." : "Run Tests"}
             </Button>
           </div>
 
           {testStatus !== "not_run" && (
-            <div className="mt-4">
-              <div
-                className={`p-4 rounded-md ${
-                  testStatus === "passed"
-                    ? "bg-green-100 border border-green-200"
-                    : testStatus === "failed"
-                    ? "bg-red-100 border border-red-200"
-                    : "bg-gray-100 border border-gray-200"
-                }`}
-              >
-                <div className="flex items-center">
-                  {testStatus === "passed" && <CheckCircle className="h-5 w-5 text-green-500 mr-2" />}
-                  {testStatus === "failed" && <XCircle className="h-5 w-5 text-red-500 mr-2" />}
-                  {testStatus === "running" && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
-                  {testStatus === "pending" && <Code2 className="h-5 w-5 mr-2" />}
-                  <span className="font-medium capitalize">{testStatus}</span>
-                </div>
-
-                {testResults && (
-                  <div className="mt-4">
-                    <h3 className="font-medium mb-2">Test Details:</h3>
-                    <pre className="bg-gray-800 text-white p-3 rounded text-sm overflow-auto max-h-40">
-                      {JSON.stringify(testResults, null, 2)}
-                    </pre>
-                  </div>
+            <div
+              className={`p-4 rounded-md ${
+                testStatus === "passed"
+                  ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800"
+                  : testStatus === "failed"
+                    ? "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
+                    : "bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800"
+              }`}
+            >
+              <div className="flex items-center mb-2">
+                {testStatus === "passed" && (
+                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
                 )}
+                {testStatus === "failed" && (
+                  <XCircle className="h-5 w-5 text-red-500 mr-2" />
+                )}
+                {testStatus === "running" && (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                )}
+                {testStatus === "pending" && (
+                  <Code2 className="h-5 w-5 mr-2" />
+                )}
+                <span className="font-medium capitalize">{testStatus}</span>
               </div>
+
+              {testResults && (
+                <div className="mt-4">
+                  <h3 className="font-medium mb-2">Test Details:</h3>
+                  <pre className="bg-gray-800 text-white p-3 rounded text-sm overflow-auto max-h-60">
+                    {JSON.stringify(testResults, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </div>

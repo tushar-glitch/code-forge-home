@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "build": "echo \"No build needed\"",
-    "dev": "nodemon src/index.js",
+    "dev": "nodemon --ignore temp/ --watch src src/index.js",
     "prisma:seed": "node prisma/seed.js",
     "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -25,15 +25,20 @@
     "dockerode": "^4.0.9",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
     "playwright": "^1.56.1",
     "prisma": "^6.17.1",
     "resend": "^2.0.0",
+    "winston": "^3.18.3",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.28.5",
+    "@babel/preset-react": "^7.28.5",
     "@faker-js/faker": "^10.1.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
+    "babel-jest": "^30.2.0",
     "nodemon": "^3.1.10"
   }
 }
