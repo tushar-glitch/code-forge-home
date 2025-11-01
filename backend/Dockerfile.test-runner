@@ -1,23 +1,97 @@
-FROM node:18-alpine
+# FROM node:18-bullseye-slim
+
+# WORKDIR /usr/src/app
+
+# # Install build tools that many npm packages need
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     python3 make g++ git ca-certificates \
+#  && rm -rf /var/lib/apt/lists/*
+
+# COPY test-runner/test-runner-package.json ./package.json
+# COPY test-runner/package-lock.json ./
+
+# COPY test-runner/jest.setup.js ./
+# COPY test-runner/jest.config.js ./
+# COPY test-runner/babel.config.js ./
+
+
+# RUN npm ci --no-audit --no-fund --silent
+
+# WORKDIR /workspace
+
+# RUN chown -R node:node /usr/src/app /workspace
+
+# ENV BABEL_ENV=test
+# USER node
+# CMD ["/bin/sh",]
+
+
+
+# Prev
+# FROM node:18-bullseye-slim
+
+# WORKDIR /usr/src/app
+
+# # Install build tools that many npm packages need
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     python3 make g++ git ca-certificates \
+#  && rm -rf /var/lib/apt/lists/*
+
+# COPY test-runner/test-runner-package.json ./package.json
+# COPY test-runner/package-lock.json ./
+
+# COPY test-runner/jest.setup.js ./
+# COPY test-runner/jest.config.js ./
+# COPY test-runner/babel.config.js ./
+
+
+# RUN npm ci --no-audit --no-fund --silent --prefer-offline
+# ENV PATH="/usr/src/app/node_modules/.bin:${PATH}"
+
+
+# WORKDIR /workspace
+
+# RUN chown -R node:node /usr/src/app /workspace
+
+# ENV BABEL_ENV=test
+# USER node
+# CMD ["/bin/sh"]
+
+
+# Current
+
+FROM node:18-bullseye-slim
 
 WORKDIR /usr/src/app
+
+# Install build tools that many npm packages need
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY test-runner/test-runner-package.json ./package.json
 COPY test-runner/package-lock.json ./
 
-COPY test-runner/jest.config.js ./
+# Copy config files to the app directory so they're available
 COPY test-runner/jest.setup.js ./
+COPY test-runner/jest.config.js ./
+COPY test-runner/babel.config.js ./
 
-RUN npm install
+# Install dependencies
+RUN npm ci --no-audit --no-fund --silent --prefer-offline
 
-# Set the working directory to /workspace for the final image
+# Add node_modules/.bin to PATH so Jest and Babel are available
+ENV PATH="/usr/src/app/node_modules/.bin:${PATH}"
+
+# Create workspace directory
 WORKDIR /workspace
 
-# Create non-root user (use node's existing user)
-RUN chown -R node:node /usr/src/app
-RUN chown -R node:node /workspace
+# Ensure proper permissions
+RUN chown -R node:node /usr/src/app /workspace
 
+# Set environment
 ENV BABEL_ENV=test
+ENV NODE_ENV=test
 
 USER node
 

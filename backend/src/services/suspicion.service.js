@@ -20,6 +20,7 @@ const suspicionEngine = async (files, ws) => {
     );
 
     const question = response.data.candidates[0].content.parts[0].text;
+    // const question = "Can you explain the code you have written so far?";
     ws.send(JSON.stringify({ type: 'question', payload: { question } }));
   } catch (error) {
     console.error('Error generating question:', error);

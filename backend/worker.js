@@ -49,8 +49,9 @@ const jobWorker = new Worker('exec-jobs', async job => {
       scripts: {
         test: 'jest --json --outputFile=test-results.json'
       },
-      devDependencies: {
-        '@testing-library/react': '^14.0.0',
+      dependencies:{
+          "@babel/runtime": "^7.23.0",
+            '@testing-library/react': '^14.0.0',
         '@testing-library/jest-dom': '^6.0.0',
         '@babel/core': '^7.23.0',
         '@babel/preset-env': '^7.23.0',
@@ -59,6 +60,9 @@ const jobWorker = new Worker('exec-jobs', async job => {
         'jest': '^29.0.0',
         'jest-environment-jsdom': '^29.0.0',
         'identity-obj-proxy': '^3.0.0'
+      },
+      devDependencies: {
+      
       }
     };
 
@@ -105,18 +109,20 @@ const jobWorker = new Worker('exec-jobs', async job => {
     const jestConfig = `
 module.exports = {
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   transform: {
     '^.+\\\\.(js|jsx)$': 'babel-jest',
   },
   moduleFileExtensions: ['js', 'jsx'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleNameMapper: {
     '\\\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(other-package-to-transform)/)',
+  ],
 };
 `;
-    await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
-
+await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
     // Create jest.setup.js
     await fs.writeFile(
       path.join(workspace, 'jest.setup.js'),
@@ -134,8 +140,23 @@ module.exports = {
     const binds = [`${workspace}:/data:rw`];
 
     const command = dependencies && Object.keys(dependencies).length > 0
-      ? 'cp -r /data/* /workspace/ && cp -r /usr/src/app/node_modules /workspace/ && npm install && npm test'
-      : 'cp -r /data/* /workspace/ && cp -r /usr/src/app/node_modules /workspace/ && npm test';
+  ? `
+    set -e
+    cp -r /data/* /workspace/ 2>/dev/null || true
+    cp -r /usr/src/app/node_modules /workspace/
+    cp /usr/src/app/.babelrc /workspace/ 2>/dev/null || true
+    cd /workspace
+    npm install --silent
+    npm test
+  `.trim()
+  : `
+    set -e
+    cp -r /data/* /workspace/ 2>/dev/null || true
+    cp -r /usr/src/app/node_modules /workspace/
+    cp /usr/src/app/.babelrc /workspace/ 2>/dev/null || true
+    cd /workspace
+    npm test
+  `.trim();
 
     const createOptions = {
       Image: image,
@@ -220,10 +241,43 @@ module.exports = {
     });
     
     // Debug: Log stdout/stderr to see what happened
-    if (stdout) console.log('STDOUT:', stdout.substring(0, 500));
-    if (stderr) console.log('STDERR:', stderr.substring(0, 500));
+    // if (stdout) console.log('STDOUT:', stdout.substring(0, 500));
+    // if (stderr) console.log('STDERR:', stderr.substring(0, 500));
 
-    await axios.post('http://localhost:3001/api/exec/internal/results', resultPayload);
+    if (stdout) {
+        console.log('STDOUT (len=%d):', stdout.length);
+        console.log(stdout.substring(0, 3000));
+      }
+      if (stderr) {
+        console.log('STDERR (len=%d):', stderr.length);
+        console.log(stderr.substring(0, 3000));
+      }
+
+
+    // await axios.post('http://localhost:3001/api/exec/internal/results', resultPayload);
+
+    // replace your await axios.post(...) with this to get richer failure information
+      try {
+        const resp = await axios.post('http://localhost:3001/api/exec/internal/results', resultPayload, {
+          timeout: 10000,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('Posted results, server responded:', resp.status);
+      } catch (err) {
+        if (err.response) {
+          // server responded with status code outside 2xx
+          console.error('POST failed - response status:', err.response.status);
+          console.error('POST failed - response headers:', err.response.headers);
+          console.error('POST failed - response data:', JSON.stringify(err.response.data).substring(0, 2000));
+        } else if (err.request) {
+          // request sent but no response
+          console.error('POST failed - no response received:', err.message);
+        } else {
+          console.error('POST failed - setup error:', err.message);
+        }
+        throw err;
+      }
+
     console.log(`Job ${jobId} completed with status: ${resultPayload.status}`);
 
     return resultPayload;

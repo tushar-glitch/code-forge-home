@@ -4,8 +4,8 @@
   "description": "Test runner for code-forge",
   "main": "index.js",
   "scripts": {
-    "test": "jest --json --outputFile=test-results.json"
-  },
+  "test": "node ./node_modules/jest/bin/jest.js --config=/usr/src/app/jest.config.js --json --outputFile=test-results.json"
+},
   "devDependencies": {
     "@testing-library/react": "^14.0.0",
     "@testing-library/jest-dom": "^6.0.0",

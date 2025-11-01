@@ -2,9 +2,11 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const saveProctoringEvent = async (event) => {
+  console.log("save procter func",event);
+  
   try {
     if (event.type === 'answer') {
-      await prisma.proctoringEvent.update({
+      await prisma.proctoringEvent.upsert({
         where: { id: event.id },
         data: {
           answer: event.payload.answer,

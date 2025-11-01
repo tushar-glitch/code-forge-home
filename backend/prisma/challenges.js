@@ -74,7 +74,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import Counter from './Counter';
 
 test('renders counter and increments on click', () => {
-  render(<Counter />);
+  render(<Counterrrr />);
   
   const countElement = screen.getByText(/Count: 0/i);
   expect(countElement).toBeInTheDocument();
