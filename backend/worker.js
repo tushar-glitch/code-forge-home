@@ -93,7 +93,7 @@ const jobWorker = new Worker('exec-jobs', async job => {
       JSON.stringify(mergedPackageJson, null, 2)
     );
 
-    // Create .babelrc
+    // FIXED: Use babel.config.js instead of .babelrc
     const babelConfig = {
       presets: [
         ['@babel/preset-env', { targets: { node: 'current' } }],
@@ -101,8 +101,8 @@ const jobWorker = new Worker('exec-jobs', async job => {
       ]
     };
     await fs.writeFile(
-      path.join(workspace, '.babelrc'),
-      JSON.stringify(babelConfig, null, 2)
+      path.join(workspace, 'babel.config.js'),
+      `module.exports = ${JSON.stringify(babelConfig, null, 2)};`
     );
 
     // Create jest.config.js
@@ -122,7 +122,8 @@ module.exports = {
   ],
 };
 `;
-await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
+    await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
+    
     // Create jest.setup.js
     await fs.writeFile(
       path.join(workspace, 'jest.setup.js'),
@@ -144,18 +145,20 @@ await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
     set -e
     cp -r /data/* /workspace/ 2>/dev/null || true
     cp -r /usr/src/app/node_modules /workspace/
-    cp /usr/src/app/.babelrc /workspace/ 2>/dev/null || true
+    cp /usr/src/app/babel.config.js /workspace/ 2>/dev/null || true
     cd /workspace
     npm install --silent
     npm test
+    cp test-results.json /data/ 2>/dev/null || true
   `.trim()
   : `
     set -e
     cp -r /data/* /workspace/ 2>/dev/null || true
     cp -r /usr/src/app/node_modules /workspace/
-    cp /usr/src/app/.babelrc /workspace/ 2>/dev/null || true
+    cp /usr/src/app/babel.config.js /workspace/ 2>/dev/null || true
     cd /workspace
     npm test
+    cp test-results.json /data/ 2>/dev/null || true
   `.trim();
 
     const createOptions = {
@@ -240,10 +243,6 @@ await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
       hasTestResults: !!testResults 
     });
     
-    // Debug: Log stdout/stderr to see what happened
-    // if (stdout) console.log('STDOUT:', stdout.substring(0, 500));
-    // if (stderr) console.log('STDERR:', stderr.substring(0, 500));
-
     if (stdout) {
         console.log('STDOUT (len=%d):', stdout.length);
         console.log(stdout.substring(0, 3000));
@@ -253,11 +252,7 @@ await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
         console.log(stderr.substring(0, 3000));
       }
 
-
-    // await axios.post('http://localhost:3001/api/exec/internal/results', resultPayload);
-
-    // replace your await axios.post(...) with this to get richer failure information
-      try {
+    try {
         const resp = await axios.post('http://localhost:3001/api/exec/internal/results', resultPayload, {
           timeout: 10000,
           headers: { 'Content-Type': 'application/json' }
@@ -265,12 +260,10 @@ await fs.writeFile(path.join(workspace, 'jest.config.js'), jestConfig);
         console.log('Posted results, server responded:', resp.status);
       } catch (err) {
         if (err.response) {
-          // server responded with status code outside 2xx
           console.error('POST failed - response status:', err.response.status);
           console.error('POST failed - response headers:', err.response.headers);
           console.error('POST failed - response data:', JSON.stringify(err.response.data).substring(0, 2000));
         } else if (err.request) {
-          // request sent but no response
           console.error('POST failed - no response received:', err.message);
         } else {
           console.error('POST failed - setup error:', err.message);

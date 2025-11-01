@@ -75,31 +75,38 @@ h1 {
 };
 
 // ========================================
-// Proctoring Agent Component
+// Proctoring Agent Component - FIXED
 // ========================================
-const ProctoringAgent = ({ accessLink, projectFiles }) => {
+const ProctoringAgent = ({ accessLink, projectFiles, wsRef }) => {
   const { toast } = useToast();
   const [aiQuestion, setAiQuestion] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
-  const ws = useRef<WebSocket | null>(null);
+  const projectFilesRef = useRef(projectFiles);
+
+  // Keep projectFiles ref updated
+  useEffect(() => {
+    projectFilesRef.current = projectFiles;
+  }, [projectFiles]);
 
   useEffect(() => {
     if (!accessLink) return;
 
     const wsUrl = `ws://localhost:3001?accessLink=${accessLink}`;
-    ws.current = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-    ws.current.onopen = () => {
-      console.log("WebSocket connection established");
+    ws.onopen = () => {
+      console.log("WebSocket connected to proctoring agent");
     };
 
-    ws.current.onmessage = (event) => {
+    ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.type === "request.code.snapshot") {
-        ws.current?.send(
+        const currentFiles = projectFilesRef.current;
+        ws.send(
           JSON.stringify({
             type: "code.snapshot",
-            payload: { files: projectFiles },
+            payload: { files: currentFiles },
           })
         );
       } else if (message.type === "question") {
@@ -107,23 +114,27 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
       }
     };
 
-    ws.current.onclose = () => {
-      console.log("WebSocket connection closed");
+    ws.onclose = () => {
+      console.log("Proctoring WebSocket closed");
+      wsRef.current = null;
     };
 
-    ws.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
+    ws.onerror = (error) => {
+      console.error("Proctoring WebSocket error:", error);
       toast({
         title: "Proctoring Error",
-        description: "Connection to the proctoring service was lost.",
+        description: "Connection to proctoring service lost.",
         variant: "destructive",
       });
     };
 
     return () => {
-      ws.current?.close();
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+      wsRef.current = null;
     };
-  }, [accessLink, projectFiles, toast]);
+  }, [accessLink, toast, wsRef]);
 
   const handleSendAnswer = () => {
     if (!answer.trim()) {
@@ -134,14 +145,29 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
       });
       return;
     }
-    ws.current?.send(
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      toast({
+        title: "Connection Lost",
+        description: "Cannot send answer. Reconnecting...",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    wsRef.current.send(
       JSON.stringify({
         type: "answer",
         payload: { question: aiQuestion, answer },
       })
     );
+
     setAiQuestion(null);
     setAnswer("");
+    toast({
+      title: "Answer Sent",
+      description: "Your answer has been recorded.",
+    });
   };
 
   return (
@@ -157,8 +183,12 @@ const ProctoringAgent = ({ accessLink, projectFiles }) => {
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Type your answer here..."
+          rows={5}
         />
         <DialogFooter>
+          <Button variant="outline" onClick={() => setAiQuestion(null)}>
+            Skip
+          </Button>
           <Button onClick={handleSendAnswer}>Send Answer</Button>
         </DialogFooter>
       </DialogContent>
@@ -191,24 +221,25 @@ const InterviewWorkspace = () => {
   const [testResults, setTestResults] = useState<any>(null);
   const [submissionId, setSubmissionId] = useState<number | null>(null);
   const [accessLink, setAccessLink] = useState<string | null>(location.state?.accessLink || null);
+  
+  // WebSocket ref for proctoring
+  const wsRef = useRef<WebSocket | null>(null);
 
   // ========================================
   // Load Assignment Data
   // ========================================
   useEffect(() => {
     const loadAssignment = async () => {
-      console.log("🔹 loadAssignment triggered for assignmentId:", assignmentId);
+      console.log("loadAssignment triggered for assignmentId:", assignmentId);
       setIsLoading(true);
       try {
         let assignmentDetails;
 
         if (user) {
-          // Authenticated user: fetch by assignmentId
-          console.log("🔹 Logged-in recruiter flow");
+          console.log("Logged-in recruiter flow");
           assignmentDetails = await getAssignmentDetails(parseInt(assignmentId!));
         } else {
-          // Unauthenticated user: fetch by accessLink
-          console.log("🔹 Candidate flow using access link");
+          console.log("Candidate flow using access link");
           const accessLinkFromState = location.state?.accessLink;
           if (accessLinkFromState) {
             assignmentDetails = await getAssignmentDetailsByAccessLink(accessLinkFromState);
@@ -217,7 +248,7 @@ const InterviewWorkspace = () => {
           }
         }
 
-        console.log("✅ Assignment details loaded:", assignmentDetails);
+        console.log("Assignment details loaded:", assignmentDetails);
 
         if (!assignmentDetails) throw new Error("Assignment not found");
 
@@ -226,13 +257,13 @@ const InterviewWorkspace = () => {
 
         // Update status to in-progress if pending
         if (assignmentDetails.status === "pending") {
-          console.log("🔹 Updating assignment status to in-progress...");
+          console.log("Updating assignment status to in-progress...");
           if (user) {
             await updateAssignmentStatus(parseInt(assignmentId!), "in-progress", true, false);
           } else if (assignmentDetails.access_link) {
             await updateAssignmentStatus(assignmentDetails.access_link, "in-progress", true, false);
           }
-          console.log("✅ Status updated to in-progress");
+          console.log("Status updated to in-progress");
         }
 
         // Load project files from Test.files_json
@@ -244,6 +275,7 @@ const InterviewWorkspace = () => {
                 typeof filesData === "string" ? JSON.parse(filesData) : filesData;
 
               if (parsedFiles && typeof parsedFiles === "object") {
+                console.log("Setting project files:", Object.keys(parsedFiles));
                 setProjectFiles(parsedFiles as ProjectFiles);
                 const firstFilePath = Object.keys(parsedFiles)[0];
                 if (firstFilePath) setActiveFile(firstFilePath);
@@ -288,7 +320,6 @@ const InterviewWorkspace = () => {
                 }
               }
             } catch (e) {
-              // Handle single file content format
               if (latestSubmission.file_path && latestSubmission.content) {
                 const filePath = String(latestSubmission.file_path);
                 const content = String(latestSubmission.content);
@@ -301,7 +332,7 @@ const InterviewWorkspace = () => {
           }
         }
       } catch (error: any) {
-        console.error("❌ Error loading assignment:", error);
+        console.error("Error loading assignment:", error);
         toast({
           title: "Error",
           description: error.message || "Failed to load the assignment data",
@@ -316,7 +347,7 @@ const InterviewWorkspace = () => {
   }, [user, assignmentId, location.state?.accessLink, session?.token, toast]);
 
   // ========================================
-  // Poll Test Results (NEW EXEC API)
+  // Poll Test Results (EXEC API)
   // ========================================
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -325,15 +356,15 @@ const InterviewWorkspace = () => {
       interval = setInterval(async () => {
         try {
           const res = await api.get<any>(`/exec/status/${submissionId}`);
-          console.log("📊 Polling test status:", res);
+          console.log("Polling test status:", res);
 
           if (res && res.test_status && res.test_status !== "pending" && res.test_status !== "running") {
-            setTestStatus(res.test_status as "pending" | "running" | "passed" | "failed" | "not_run");
+            setTestStatus(res.test_status);
             setTestResults(res.results);
             clearInterval(interval);
             
             toast({
-              title: res.test_status === "passed" ? "Tests Passed! ✅" : "Tests Failed",
+              title: res.test_status === "passed" ? "Tests Passed!" : "Tests Failed",
               description: res.test_status === "passed" 
                 ? "All tests passed successfully!" 
                 : "Some tests failed. Check the results below.",
@@ -341,11 +372,11 @@ const InterviewWorkspace = () => {
             });
           }
         } catch (err) {
-          console.error("❌ Error polling test results:", err);
+          console.error("Error polling test results:", err);
           setTestStatus("failed");
           clearInterval(interval);
         }
-      }, 3000); // Poll every 3 seconds
+      }, 3000);
     }
 
     return () => clearInterval(interval);
@@ -371,16 +402,16 @@ const InterviewWorkspace = () => {
         );
         setAutosaveStatus("saved");
       } catch (error) {
-        console.error("❌ Error saving submission:", error);
+        console.error("Error saving submission:", error);
         setAutosaveStatus("error");
       }
-    }, 2000); // Debounce 2 seconds
+    }, 2000);
 
     return () => clearTimeout(saveTimeout);
   }, [projectFiles, assignmentId, assignmentData, session?.token]);
 
   // ========================================
-  // Run Tests (NEW EXEC API)
+  // Run Tests (EXEC API)
   // ========================================
   const runTests = async () => {
     if (!assignmentData?.Test?.id) {
@@ -392,9 +423,23 @@ const InterviewWorkspace = () => {
       return;
     }
 
-    console.log("🔹 runTests triggered");
-    console.log("Frontend sending assignmentId (TestAssignment.id):", assignmentData.id);
-    console.log("Frontend sending projectId (Test.id):", assignmentData.Test.id);
+    console.log("runTests triggered");
+    console.log("Sending assignmentId:", assignmentData.id);
+    console.log("Sending projectId:", assignmentData.Test.id);
+    console.log("projectFiles keys:", Object.keys(projectFiles));
+
+    // Trigger proctoring snapshot
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "code.snapshot",
+          payload: { files: projectFiles },
+        })
+      );
+      console.log("Sent code snapshot to proctoring agent");
+    } else {
+      console.log("WebSocket not open, skipping proctoring snapshot");
+    }
 
     setTestStatus("running");
     setTestResults(null);
@@ -406,11 +451,11 @@ const InterviewWorkspace = () => {
         projectId: assignmentData.Test.id,
       };
       
-      console.log("📤 Frontend sending payload:", payload);
+      console.log("Sending to /exec/submit:", payload);
       
       const response = await api.post<any>("/exec/submit", payload);
 
-      console.log("✅ Test execution started:", response);
+      console.log("Test execution started:", response);
       
       setSubmissionId(response.submissionId);
 
@@ -419,7 +464,7 @@ const InterviewWorkspace = () => {
         description: "Your code is being tested. Results will appear shortly.",
       });
     } catch (error) {
-      console.error("❌ Error running tests:", error);
+      console.error("Error running tests:", error);
       setTestStatus("failed");
       toast({
         title: "Error",
@@ -445,7 +490,6 @@ const InterviewWorkspace = () => {
     setIsSubmitting(true);
 
     try {
-      // Create final submission if not exists
       let finalSubmissionId = submissionId;
 
       if (!finalSubmissionId) {
@@ -463,12 +507,10 @@ const InterviewWorkspace = () => {
         setSubmissionId(finalSubmissionId);
       }
 
-      // Run tests if not already run
       if (testStatus === "not_run" || testStatus === "pending") {
         await runTests();
       }
 
-      // Mark assignment as completed
       if (user && assignmentId) {
         await updateAssignmentStatus(parseInt(assignmentId), "completed", false, true);
       } else if (accessLink) {
@@ -491,7 +533,7 @@ const InterviewWorkspace = () => {
         }
       }, 2000);
     } catch (error) {
-      console.error("❌ Error submitting assignment:", error);
+      console.error("Error submitting assignment:", error);
       toast({
         title: "Error",
         description: "Failed to submit your work. Please try again.",
@@ -551,10 +593,8 @@ const InterviewWorkspace = () => {
   // ========================================
   return (
     <div className="flex flex-col h-screen">
-      {/* Proctoring Agent (WebSocket-based AI questions) */}
-      <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} />
+      <ProctoringAgent accessLink={accessLink} projectFiles={projectFiles} wsRef={wsRef} />
 
-      {/* Header with auto-save status and submission button */}
       <WorkspaceHeader
         testTitle={assignmentData?.Test?.test_title || "Coding Test"}
         autosaveStatus={autosaveStatus}
@@ -563,7 +603,6 @@ const InterviewWorkspace = () => {
       />
 
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Sandpack Code Editor */}
         <SandpackProvider
           theme={atomDark}
           files={projectFiles}
@@ -608,7 +647,6 @@ const InterviewWorkspace = () => {
               </div>
             </div>
 
-            {/* Resize Handle */}
             <div
               style={{
                 width: "100%",
@@ -628,7 +666,6 @@ const InterviewWorkspace = () => {
               />
             </div>
 
-            {/* Preview Panel */}
             <SandpackPreview
               showNavigator
               showRefreshButton
@@ -637,7 +674,6 @@ const InterviewWorkspace = () => {
           </SandpackLayout>
         </SandpackProvider>
 
-        {/* Test Results Section */}
         <div className="border-t border-border p-4 bg-background">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Test Results</h2>
@@ -661,8 +697,8 @@ const InterviewWorkspace = () => {
                 testStatus === "passed"
                   ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800"
                   : testStatus === "failed"
-                  ? "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
-                  : "bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800"
+                    ? "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
+                    : "bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800"
               }`}
             >
               <div className="flex items-center mb-2">
